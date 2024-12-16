@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox, simpledialog
 import os
 import datetime
+from tkinter import ttk
 
 # 用户管理
 def load_users():
@@ -20,14 +21,17 @@ def verify_user(id, password):
     return False
 
 # 库存管理
+# 添加物品操作
 def add_item(item_name, quantity):
     with open(f'{item_name}.txt', 'a') as file:
         file.write(f'{datetime.datetime.now()}, +{quantity}\n')
 
+# 删除物品操作
 def remove_item(item_name, quantity):
     with open(f'{item_name}.txt', 'a') as file:
         file.write(f'{datetime.datetime.now()}, -{quantity}\n')
 
+# 修改物品操作
 def modify_item(item_name, quantity):
     with open(f'{item_name}.txt', 'a') as file:
         file.write(f'{datetime.datetime.now()}, {quantity}\n')
@@ -84,6 +88,10 @@ class VerifyDialog(simpledialog.Dialog):
 # GUI
 class InventoryApp:
     def __init__(self, root):
+
+        # 库存
+        self.kucun = None
+
         self.root = root
         self.root.title("寺庙库存管理系统")
         self.root.geometry("800x500")
@@ -116,21 +124,25 @@ class InventoryApp:
         self.buttons['employee'] = tk.Button(self.menu_frame, text="员工列表", command=self.show_employee_list, font=button_font)
         self.buttons['employee'].pack(side=tk.LEFT)
     
+    # 显示库存管理页面
     def show_inventory_management(self):
         self.clear_frame()
         self.highlight_button('inventory')
         self.create_inventory_management()
     
+    # 显示库存类别管理页面
     def show_category_management(self):
         self.clear_frame()
         self.highlight_button('category')
         self.create_category_management()
     
+    # 显示员工列表页面
     def show_employee_list(self):
         self.clear_frame()
         self.highlight_button('employee')
         self.create_employee_list()
     
+    # 显示库存统计页面
     def show_inventory_report(self):
         self.clear_frame()
         self.highlight_button('report')
@@ -147,46 +159,71 @@ class InventoryApp:
             else:
                 button.config(bg='SystemButtonFace')
     
+    # 创建库存管理页面
     def create_inventory_management(self):
 
-        left_frame = tk.Frame(self.main_frame)
-        left_frame.pack(side=tk.LEFT, fill=tk.Y)
+        # left_frame = tk.Frame(self.main_frame)
+        # left_frame.pack(side=tk.LEFT, fill=tk.Y)
         
-        right_frame = tk.Frame(self.main_frame)
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        # right_frame = tk.Frame(self.main_frame)
+        # right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        # 设置主页面
+        self.inventory_frame = tk.Frame(self.main_frame)
+        self.inventory_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 读取kucun文件，查看库存物品
+        with open('files/kucun.txt', 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        print(lines)
+        # headers = lines[0].strip().split(',')
+        headers = ['物品名称', '库存数量']
+        data = [line.strip().split(',') for line in lines[1:]]
+        # 库存更新
+        self.kucun = data
+
+        # 创建一个Canvas来容纳Treeview
+        canvas = tk.Canvas(self.inventory_frame)
+        scrollbar = ttk.Scrollbar(self.inventory_frame, orient='vertical', command=canvas.yview)
+        tree_frame = ttk.Frame(canvas)
         
-        scrollbar = tk.Scrollbar(left_frame)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # 库存类别列表
-        self.category_listbox = tk.Listbox(left_frame, yscrollcommand=scrollbar.set)
-        self.category_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.config(command=self.category_listbox.yview)
-        # 设置宽度 
-        self.category_listbox.config(width=10)
-        # # 设置宽度可以界面左右拉动
-        # self.category_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        # 示例库存类别
-        categories = ["类别1", "类别2", "类别3", "类别4", "类别5", "类别6", "类别7", "类别8", "类别9", "类别10", "类别11", "类别12", "类别13", "类别14", "类别15",
-                        "类别16", "类别17", "类别18", "类别19", "类别20", "类别21", "类别22", "类别23", "类别24", "类别25", "类别26", "类别27", "类别28", "类别29", "类别30"]
-        for category in categories:
-            self.category_listbox.insert(tk.END, category)
-        
-        self.category_listbox.bind("<<ListboxSelect>>", self.show_inventory_items)
-        
-        self.inventory_frame = right_frame
+        # 布局
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill='y')
+        canvas.create_window((0, 0), window=tree_frame, anchor='nw')
+
+        # 创建Treeview表格
+        tree = ttk.Treeview(tree_frame, columns=headers, show='headings')
+        # # 配置列标题和数据的居中对齐
+        # for header in headers:
+        #     tree.heading(header, text=header, anchor='center')  # 标题居中
+        #     tree.column(header, width=150, anchor='center')  # 数据居中
+        for header in headers:
+            tree.heading(header, text=header)
+        for row in data:
+            # 只需要显示物品名称和库存数量，下标为0和2
+            tree.insert('', 'end', values=(row[0], row[1]))
+        # 设置居中
+
+        tree.pack(fill=tk.BOTH, expand=True)
+
+        # 绑定tree和Scrollbar
+        scrollbar.configure(command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+
+        # 更新Canvas的滚动区域
+        tree_frame.update_idletasks()
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+        canvas.config(scrollregion=canvas.bbox('all'))
+                
     
-    def show_inventory_items(self, event):
-        selected_category = self.category_listbox.get(self.category_listbox.curselection())
-        self.clear_inventory_frame()
-        
-        tk.Label(self.inventory_frame, text=f"{selected_category}的库存物品").grid(row=0, column=0, columnspan=2)
     
+    # 清空库存物品
     def clear_inventory_frame(self):
         for widget in self.inventory_frame.winfo_children():
             widget.destroy()
     
+    # 创建库存类别管理页面
     def create_category_management(self):
         
         # 主页面
@@ -209,14 +246,17 @@ class InventoryApp:
         
         tk.Button(self.category_frame, text="生成日报表", command=self.generate_daily_report).grid(row=4, column=0, columnspan=3)
     
+    # 创建员工列表页面
     def create_employee_list(self):
         tk.Label(self.main_frame, text="员工列表页面").pack()
         # 添加员工列表的具体实现
 
+    # 创建库存统计页面
     def create_inventory_report(self):
         tk.Label(self.main_frame, text="库存统计页面").pack()
         # 添加库存统计的具体实现
     
+    # 添加物品
     def add_item(self):
         if self.verify_user():
             item_name = self.item_name.get()
@@ -224,6 +264,7 @@ class InventoryApp:
             add_item(item_name, quantity)
             messagebox.showinfo("成功", "添加成功")
     
+    # 删除物品
     def remove_item(self):
         if self.verify_user():
             item_name = self.item_name.get()
@@ -231,6 +272,7 @@ class InventoryApp:
             remove_item(item_name, quantity)
             messagebox.showinfo("成功", "删除成功")
     
+    # 修改物品
     def modify_item(self):
         if self.verify_user():
             item_name = self.item_name.get()
@@ -238,6 +280,7 @@ class InventoryApp:
             modify_item(item_name, quantity)
             messagebox.showinfo("成功", "修改成功")
     
+    # 生成日报表
     def generate_daily_report(self):
         if self.verify_user():
             item_name = self.item_name.get()
@@ -245,6 +288,7 @@ class InventoryApp:
             report_str = "\n".join([f"{key}: {value}" for key, value in report.items()])
             messagebox.showinfo("日报表", report_str)
     
+    # 验证用户
     def verify_user(self):
         dialog = VerifyDialog(self.root, title="验证")
         dialog.geometry("300x150")
