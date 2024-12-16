@@ -31,10 +31,35 @@ def remove_item(item_name, quantity):
     with open(f'{item_name}.txt', 'a') as file:
         file.write(f'{datetime.datetime.now()}, -{quantity}\n')
 
-# 修改物品操作
-def modify_item(item_name, quantity):
-    with open(f'{item_name}.txt', 'a') as file:
-        file.write(f'{datetime.datetime.now()}, {quantity}\n')
+# 修改物品操作 -> 通过此操作进行添加数量和减少数量
+def modify_item(item_name, quantity, type='add', index=0):
+    if type == 'add':
+        # 1、操作库存数量文件
+        # 先读取文件，再写入
+        lines = []
+        with open(f'files/kucun.txt', 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+        data = [line.strip().split(',') for line in lines[1:]]
+        # # 修正格式代码
+        # data = []
+        # for i in range(1, len(lines)):
+        #     data.append(lines[i].split(','))
+        #     print(data[0])
+        #     for j in range(len(data[i-1])):
+        #         data[i-1][j] = data[i-1][j].strip()
+        # print(data)
+        # 修改库存数量
+        data[index][2] = ' ' + str(int(data[index][2]) + int(quantity))
+        # 写入文件
+        with open(f'files/kucun.txt', 'w', encoding='utf-8') as file:
+            file.write("name, id, num\n")
+            for row in data:
+                file.write(f"{row[0]},{row[1]},{row[2]}\n")
+        # 2、对此次操作进行记录
+        
+    else:
+        with open(f'{item_name}.txt', 'a') as file:
+            file.write(f'{datetime.datetime.now()}, -{quantity}\n')
 
 # 统计功能
 def generate_report(item_name, period='daily'):
@@ -104,6 +129,11 @@ class InventoryApp:
         
         self.buttons = {}
         self.create_main_menu()
+
+        # 库存管理页面
+        self.tree_inventory = None
+        self.inventory_frame = None
+        self.dialog_inventory = None
 
         # 默认显示库存管理页面
         self.show_inventory_management()
@@ -175,7 +205,7 @@ class InventoryApp:
         # 读取kucun文件，查看库存物品
         with open('files/kucun.txt', 'r', encoding='utf-8') as f:
             lines = f.readlines()
-        print(lines)
+
         # headers = lines[0].strip().split(',')
         headers = ['物品名称', '库存数量']
         data = [line.strip().split(',') for line in lines[1:]]
@@ -193,30 +223,114 @@ class InventoryApp:
         canvas.create_window((0, 0), window=tree_frame, anchor='nw')
 
         # 创建Treeview表格
-        tree = ttk.Treeview(tree_frame, columns=headers, show='headings')
+        self.tree_inventory = ttk.Treeview(tree_frame, columns=headers, show='headings')
         # # 配置列标题和数据的居中对齐
         # for header in headers:
         #     tree.heading(header, text=header, anchor='center')  # 标题居中
         #     tree.column(header, width=150, anchor='center')  # 数据居中
         for header in headers:
-            tree.heading(header, text=header)
+            self.tree_inventory.heading(header, text=header)
         for row in data:
             # 只需要显示物品名称和库存数量，下标为0和2
-            tree.insert('', 'end', values=(row[0], row[1]))
+            self.tree_inventory.insert('', 'end', values=(row[0], row[2]))
         # 设置居中
 
-        tree.pack(fill=tk.BOTH, expand=True)
+        self.tree_inventory.pack(fill=tk.BOTH, expand=True)
 
         # 绑定tree和Scrollbar
-        scrollbar.configure(command=tree.yview)
-        tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.configure(command=self.tree_inventory.yview)
+        self.tree_inventory.configure(yscrollcommand=scrollbar.set)
+        # 绑定tree的双击事件
+        self.tree_inventory.bind('<Double-1>', self.on_double_click_inventory)
 
         # 更新Canvas的滚动区域
         tree_frame.update_idletasks()
         tree_frame.pack(fill=tk.BOTH, expand=True)
         canvas.config(scrollregion=canvas.bbox('all'))
-                
+
+    # 双击事件
+    def on_double_click_inventory(self, event):
+        # 禁止操作主界面
+        self.root.attributes("-disabled", True)
+        # 获取双击的行
+        selected_item = self.tree_inventory.selection()
+        if not selected_item:
+            return
+        # 获取双击行的index
+        selected_index = self.tree_inventory.index(selected_item)
+
+        # 获取行数据
+        item_values = self.tree_inventory.item(selected_item, "values")
+        product_name = item_values[0]  # 产品名称
+        product_id = item_values[1]    # 产品ID
+        product_quantity = int(item_values[1])  # 库存数量
+
+        # 弹出新窗口
+        self.dialog_inventory = tk.Toplevel(self.root)
+        self.dialog_inventory.title("库存管理")
+        self.dialog_inventory.geometry("300x150")
+        # 设置关闭事件
+        self.dialog_inventory.protocol("WM_DELETE_WINDOW", self.on_closing_dialog_inventory)
+        # # 设置弹框顶置
+        # self.dialog_inventory.attributes("-topmost", True)
+        
+        # 配置行和列的权重，使它们可以伸缩
+        self.dialog_inventory.grid_rowconfigure(0, weight=1)
+        self.dialog_inventory.grid_rowconfigure(1, weight=1)
+        self.dialog_inventory.grid_rowconfigure(2, weight=1)
+        self.dialog_inventory.grid_columnconfigure(0, weight=1)
+        self.dialog_inventory.grid_columnconfigure(1, weight=1)
+
+        # 显示产品名称
+        tk.Label(self.dialog_inventory, text="产品名称:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_inventory, text=product_name).grid(row=0, column=1, padx=10, pady=5, sticky="w")
+        
+        # 显示库存数量
+        tk.Label(self.dialog_inventory, text="库存数量:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_inventory, text=product_quantity).grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        
+        # 输入操作数量
+        tk.Label(self.dialog_inventory, text="操作数量:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        quantity_entry = tk.Entry(self.dialog_inventory)
+        quantity_entry.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+        quantity_entry.config(width=10)
+        
+        # 第四行加入空白标签 (如果需要)
+        tk.Label(self.dialog_inventory, text="").grid(row=3, column=0, columnspan=2)
+        
+        # 添加按钮
+        tk.Button(self.dialog_inventory, text="添加", command=lambda: self.add_product(product_name, quantity_entry.get(), selected_index)).grid(row=4, column=0, padx=10, pady=10, sticky="ew")
+        
+        # 减少按钮
+        tk.Button(self.dialog_inventory, text="减少", command=lambda: self.remove_product(product_name, quantity_entry.get(), selected_index)).grid(row=4, column=1, padx=10, pady=10, sticky="ew")
     
+    # 添加产品数量,index为选中的行(从0开始),便于后续修改
+    def add_product(self, product_name, quantitym, index):
+        # 添加产品数量
+        modify_item(product_name, quantitym, "add", index)
+        # 刷新页面
+        self.show_inventory_management()
+        # 关闭弹窗
+        self.on_closing_dialog_inventory()
+
+    # 监听dialog_inventory窗口的关闭事件
+    def on_closing_dialog_inventory(self):
+        print("关闭弹窗")
+        self.root.attributes("-disabled", False)
+        # root到顶层
+        self.root.attributes("-topmost", True)
+        self.dialog_inventory.destroy()
+        # root取消顶层
+        self.root.attributes("-topmost", False)
+        
+    
+    # 减少产品数量
+    def remove_product(self, product_name, quantity):
+        # 减少产品数量
+        remove_item(product_name, quantity)
+        # 刷新页面
+        self.clear_inventory_frame()
+        self.create_inventory_management()
     
     # 清空库存物品
     def clear_inventory_frame(self):
@@ -240,9 +354,9 @@ class InventoryApp:
         self.item_quantity = tk.Entry(self.category_frame)
         self.item_quantity.grid(row=2, column=1)
         
-        tk.Button(self.category_frame, text="添加", command=self.add_item).grid(row=3, column=0)
-        tk.Button(self.category_frame, text="删除", command=self.remove_item).grid(row=3, column=1)
-        tk.Button(self.category_frame, text="修改", command=self.modify_item).grid(row=3, column=2)
+        tk.Button(self.category_frame, text="添加", command=self.add_item_event).grid(row=3, column=0)
+        tk.Button(self.category_frame, text="删除", command=self.remove_item_event).grid(row=3, column=1)
+        tk.Button(self.category_frame, text="修改", command=self.modify_item_event).grid(row=3, column=2)
         
         tk.Button(self.category_frame, text="生成日报表", command=self.generate_daily_report).grid(row=4, column=0, columnspan=3)
     
@@ -256,24 +370,24 @@ class InventoryApp:
         tk.Label(self.main_frame, text="库存统计页面").pack()
         # 添加库存统计的具体实现
     
-    # 添加物品
-    def add_item(self):
+    # 添加物品事件
+    def add_item_event(self):
         if self.verify_user():
             item_name = self.item_name.get()
             quantity = int(self.item_quantity.get())
             add_item(item_name, quantity)
             messagebox.showinfo("成功", "添加成功")
     
-    # 删除物品
-    def remove_item(self):
+    # 删除物品事件
+    def remove_item_event(self):
         if self.verify_user():
             item_name = self.item_name.get()
             quantity = int(self.item_quantity.get())
             remove_item(item_name, quantity)
             messagebox.showinfo("成功", "删除成功")
     
-    # 修改物品
-    def modify_item(self):
+    # 修改物品事件
+    def modify_item_event(self):
         if self.verify_user():
             item_name = self.item_name.get()
             quantity = int(self.item_quantity.get())
@@ -290,9 +404,9 @@ class InventoryApp:
     
     # 验证用户
     def verify_user(self):
-        dialog = VerifyDialog(self.root, title="验证")
-        dialog.geometry("300x150")
-        user_id, password = dialog.get_credentials()
+        dialog_verify = VerifyDialog(self.root, title="验证")
+        dialog_verify.geometry("300x150")
+        user_id, password = dialog_verify.get_credentials()
         
         if verify_user(user_id, password):
             return True
