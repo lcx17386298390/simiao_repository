@@ -4,19 +4,26 @@ import os
 import datetime
 from tkinter import ttk
 
+# txt文件路径
+kucun_path = 'files/kucun.txt'
+event_log_path = 'files/event_log.txt'
+modify_inventory_log_path = 'files/modify_inventory_log.txt'
+users_path = 'files/users.txt'
+
 # 用户管理
 def load_users():
     users = {}
-    if os.path.exists('users.txt'):
-        with open('users.txt', 'r') as file:
+    if os.path.exists(f'{users_path}'):
+        with open(f'{users_path}', 'r', encoding='utf-8') as file:
             for line in file:
-                name, id, password = line.strip().split(',')
+                id, name, password = line.strip().split(',')
                 users[id] = {'name': name, 'password': password}
     return users
 
 def verify_user(id, password):
     users = load_users()
-    if id in users and users[id]['password'] == password:
+    print(users)
+    if id in users and users[id]['password'].strip() == password:
         return True
     return False
 
@@ -32,8 +39,12 @@ def remove_item(item_name, quantity):
         file.write(f'{datetime.datetime.now()}, -{quantity}\n')
 
 # 修改物品操作 -> 通过此操作进行添加数量和减少数量
-def modify_item(item_name, quantity, type='add', index=0):
-    if type == 'add':
+def modify_item(item_name, quantity, type='add', index=0, parent=None):
+    # 验证操作人员，验证通过才能进行操作
+    while not verify_user_ui(parent):
+        pass
+     
+    if   == 'add':
         # 1、操作库存数量文件
         # 先读取文件，再写入
         lines = []
@@ -55,7 +66,10 @@ def modify_item(item_name, quantity, type='add', index=0):
             file.write("name, id, num\n")
             for row in data:
                 file.write(f"{row[0]},{row[1]},{row[2]}\n")
-        # 2、对此次操作进行记录
+        # 2、对此次操作进行记录，记录到事件操作表和修改库存表
+        with open(f'{event_log_path}', 'a') as file:
+            # 记录事件操作  （事件描述, 操作员工id, 操作员工, 变更内容, 操作时间）
+            file.write(f'添加物品, {item_name}, {quantity}, {datetime.datetime.now()}\n')
         
     else:
         with open(f'{item_name}.txt', 'a') as file:
@@ -86,7 +100,20 @@ def generate_report(item_name, period='daily'):
     
     return report
 
-# 自定义验证对话框
+# 验证用户
+def verify_user_ui(parent):
+    dialog_verify = VerifyDialog(parent,title="验证")
+    # dialog_verify.geometry("500x150")
+    user_id, password = dialog_verify.get_credentials()
+    
+    if verify_user(user_id, password):
+        messagebox.showinfo("成功", "用户验证成功,已修改库存")
+        return True
+    else:
+        messagebox.showerror("错误", "用户验证失败")
+        return False
+
+# 自定义验证用户信息对话框
 class VerifyDialog(simpledialog.Dialog):
     def __init__(self, parent, title=None):
         super().__init__(parent, title=title)
@@ -307,7 +334,7 @@ class InventoryApp:
     # 添加产品数量,index为选中的行(从0开始),便于后续修改
     def add_product(self, product_name, quantitym, index):
         # 添加产品数量
-        modify_item(product_name, quantitym, "add", index)
+        modify_item(product_name, quantitym, "add", index, parent=self.root)
         # 刷新页面
         self.show_inventory_management()
         # 关闭弹窗
@@ -401,18 +428,6 @@ class InventoryApp:
             report = generate_report(item_name, 'daily')
             report_str = "\n".join([f"{key}: {value}" for key, value in report.items()])
             messagebox.showinfo("日报表", report_str)
-    
-    # 验证用户
-    def verify_user(self):
-        dialog_verify = VerifyDialog(self.root, title="验证")
-        dialog_verify.geometry("300x150")
-        user_id, password = dialog_verify.get_credentials()
-        
-        if verify_user(user_id, password):
-            return True
-        else:
-            messagebox.showerror("错误", "用户验证失败")
-            return False
 
 if __name__ == "__main__":
     root = tk.Tk()

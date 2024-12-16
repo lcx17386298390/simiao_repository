@@ -1,5 +1,5 @@
 id, name, password
-root, 陈, 123456
+root, 陈, 1234
 001, 张三, password123
 002, 李四, 12345678
 003, 王五, abc123
