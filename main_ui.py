@@ -393,8 +393,9 @@ class InventoryApp:
         # 减少产品数量
         modify_item(product_name, quantitym, "remove", index, parent=self.root)
         # 刷新页面
-        self.clear_inventory_frame()
-        self.create_inventory_management()
+        self.show_inventory_management()
+        # 关闭弹窗
+        self.on_closing_dialog_inventory()
 
     # 监听dialog_inventory窗口的关闭事件
     def on_closing_dialog_inventory(self):
