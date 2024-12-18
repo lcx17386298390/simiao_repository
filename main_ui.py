@@ -274,7 +274,7 @@ class InventoryApp:
 
         # 创建一个Canvas来容纳Treeview
         canvas = tk.Canvas(self.inventory_frame)
-        scrollbar = ttk.Scrollbar(self.inventory_frame, orient='vertical', command=canvas.yview)
+        scrollbar = ttk.Scrollbar(self.inventory_frame, orient='vertical')
         tree_frame = ttk.Frame(canvas)
         
         # 布局
@@ -441,27 +441,111 @@ class InventoryApp:
     
     # 创建库存类别管理页面
     def create_category_management(self):
-        
-        # 主页面
+        # 定义状态变量，选中的物品坐标
+        self.selected_item_index = None
+
+        # 添加一个新的categoryFrame主页面
         self.category_frame = tk.Frame(self.main_frame)
         self.category_frame.pack(fill=tk.BOTH, expand=True)
-        tk.Label(self.main_frame, text="库存类别管理页面").pack()
+        # # 设置测试背景颜色
+        # self.category_frame.config(bg='red')
 
-        # 添加库存类别管理的具体实现
-        tk.Label(self.category_frame, text="物品名称:").grid(row=1, column=0)
-        self.item_name = tk.Entry(self.category_frame)
-        self.item_name.grid(row=1, column=1)
+        # 添加两个frame
+        self.left_frame_category = tk.Frame(self.category_frame, width=400)
+        self.left_frame_category.pack(side=tk.LEFT, padx=(40,0), fill=tk.Y)
+        self.right_frame_category = tk.Frame(self.category_frame, width=260)
+        self.right_frame_category.pack(side=tk.RIGHT, padx=(0,40), fill=tk.Y)
+
+        # 左侧frame加入view和滑轮
+        self.canvas_category = tk.Canvas(self.left_frame_category)
+        columns = {"库存物品名称":190,"备注":190}
+        self.tree_category = ttk.Treeview(self.canvas_category, columns=list(columns), show='headings')
+        self.scrollbar_category = tk.Scrollbar(self.left_frame_category, orient='vertical')
+        for text, width in columns.items():  # 批量设置列属性
+            self.tree_category.heading(text, text=text, anchor='center')
+            self.tree_category.column(text, anchor='center', width=width, stretch=True)  # stretch 不自动拉伸
+        self.tree_category.pack(fill=tk.BOTH, expand=True)
+        self.canvas_category.pack(side=tk.LEFT, fill=tk.BOTH, expand=True) 
+        self.scrollbar_category.pack(side=tk.RIGHT, fill='y')
         
-        tk.Label(self.category_frame, text="数量:").grid(row=2, column=0)
-        self.item_quantity = tk.Entry(self.category_frame)
-        self.item_quantity.grid(row=2, column=1)
+        # 绑定tree和Scrollbar
+        self.scrollbar_category.configure(command=self.tree_category.yview)
+        self.tree_category.configure(yscrollcommand=self.scrollbar_category.set)
+
+        # 绑定tree的单击事件
+        self.tree_category.bind('<Button-1>', self.on_click_category)
+        # 绑定tree的双击事件
+        self.tree_category.bind('<Double-1>', self.on_click_double_category)
+
+        # 往tree中插入数据->测试
+        for i in range(100):
+            self.tree_category.insert('', 'end', values=(f'物品{i}', f'备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注{i}'))
+
+        # 右侧frame加入标签按钮,按钮宽120，高35
+        self.label_category = tk.Label(self.right_frame_category, text="操作按钮", width=20, height=2, font=("Arial", 15, "bold")).pack(side=tk.TOP)
+        tk.Button(self.right_frame_category, text="添加物品", command=self.add_item_event, width=20, height=2).pack(side=tk.TOP, pady=(80,30))
+        tk.Button(self.right_frame_category, text="删除物品", command=self.remove_item_event, width=20, height=2).pack(side=tk.TOP, pady=30)
+        tk.Button(self.right_frame_category, text="修改物品", command=self.modify_item_event, width=20, height=2).pack(side=tk.TOP, pady=30)
+
+    # 类别页面鼠标单击事件
+    def on_click_category(self, event):
+        # 获取鼠标指针所在行的ID
+        row_id = self.tree_category.identify_row(event.y)
+        # 获取行数据
+        item_data = self.tree_category.item(row_id, "values")
+
+        # 可能选中的是空白处
+        if not item_data:
+            print('单击选中空白处')
+            return
         
-        tk.Button(self.category_frame, text="添加", command=self.add_item_event).grid(row=3, column=0)
-        tk.Button(self.category_frame, text="删除", command=self.remove_item_event).grid(row=3, column=1)
-        tk.Button(self.category_frame, text="修改", command=self.modify_item_event).grid(row=3, column=2)
-        
-        tk.Button(self.category_frame, text="生成日报表", command=self.generate_daily_report).grid(row=4, column=0, columnspan=3)
+        # 获取行的index
+        self.selected_item = self.tree_category.index(row_id)
+        print('单击选中行：', self.selected_item)
+        self.selected_item_index = self.selected_item
     
+    # 类别页面鼠标双击事件
+    def on_click_double_category(self, event):
+        # 获取鼠标指针所在行的ID
+        row_id = self.tree_category.identify_row(event.y)
+        # 获取行数据
+        item_data = self.tree_category.item(row_id, "values")
+
+        # 可能选中的是空白处
+        if not item_data:
+            print('双击选中空白处')
+            return
+        
+        # 获取行的index
+        self.selected_item = self.tree_category.index(row_id)
+        print('双击选中行：', self.selected_item)
+        # 弹出新窗口，显示详细信息
+        self.dialog_category = tk.Toplevel(self.root)
+        self.dialog_category.title("物品详细信息")
+        self.dialog_category.geometry("300x150")
+        # 在屏幕中央显示
+        x = (self.screen_width - 300) // 2
+        y = (self.screen_height - 150) // 2
+        self.dialog_category.geometry(f"300x150+{x}+{y}")
+        # # 设置关闭事件
+        # self.dialog_category.protocol("WM_DELETE_WINDOW", self.on_closing_dialog_category)
+        # # 设置弹框顶置
+        self.dialog_category.attributes("-topmost", True)
+        # 显示产品名称
+        tk.Label(self.dialog_category, text="产品名称:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_category, text=item_data[0]).grid(row=0, column=1, padx=10, pady=5, sticky="w")
+        # 显示完整备注，使用文字框，不可编辑
+        tk.Label(self.dialog_category, text="备注:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        text = tk.Text(self.dialog_category, width=20, height=5)
+        text.grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        text.insert(tk.END, item_data[1])
+        text.config(state=tk.DISABLED)
+
+
+
+
+        
+            
     # 创建员工列表页面
     def create_employee_list(self):
         tk.Label(self.main_frame, text="员工列表页面").pack()
@@ -506,5 +590,11 @@ class InventoryApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    # 创建 Style 对象
+    style = ttk.Style()
+
+    # 配置 Treeview 的字体
+    style.configure("Treeview", font=("Arial", 13))  # 设置字体为 Arial，大小为 14
+    style.configure("Treeview.Heading", font=("Arial", 13, "bold"))  # 设置表头字体
     app = InventoryApp(root)
     root.mainloop()
