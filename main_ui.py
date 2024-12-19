@@ -453,8 +453,6 @@ class InventoryApp:
     
     # 创建库存类别管理页面
     def create_category_management(self):
-        # 定义状态变量，选中的物品坐标
-        self.selected_item_index = None
 
         # 添加一个新的categoryFrame主页面
         # 定义状态变量，选中的物品坐标
