@@ -137,7 +137,7 @@ def generate_report(item_name, period='daily'):
 # 验证用户->弹出验证用户信息对话框,成功返回用户信息,失败返回False
 def verify_user_ui(parent):
     dialog_verify = VerifyDialog(parent,title="验证")
-    # dialog_verify.geometry("500x150")
+    print("弹出验证用户信息对话框")
     user_id, password = dialog_verify.get_credentials()
 
     # 返回信息
@@ -148,17 +148,13 @@ def verify_user_ui(parent):
     else:
         messagebox.showinfo("成功", "用户验证成功")
         return verify_result
-    
-    # if verify_user(user_id, password):
-    #     messagebox.showinfo("成功", "用户验证成功,已修改库存")
-    #     return True
-    # else:
-    #     messagebox.showerror("错误", "用户验证失败")
-    #     return False
+
 
 # 自定义验证用户信息对话框
 class VerifyDialog(simpledialog.Dialog):
     def __init__(self, parent, title=None):
+        self.user_id = None
+        self.password = None
         super().__init__(parent, title=title)
     
     def body(self, master):
@@ -178,7 +174,9 @@ class VerifyDialog(simpledialog.Dialog):
         self.password = self.password_entry.get()
     
     def get_credentials(self):
-        return self.user_id, self.password
+        if self.user_id and self.password:
+            return self.user_id, self.password
+        return None, None
 
 # GUI
 class InventoryApp:
@@ -322,8 +320,6 @@ class InventoryApp:
 
     # 双击事件
     def on_double_click_inventory(self, event):
-        # 禁止操作主界面
-        self.root.attributes("-disabled", True)
         # 获取双击的行
         selected_item = self.tree_inventory.selection()
         if not selected_item:
@@ -344,10 +340,12 @@ class InventoryApp:
         x = (self.screen_width - 300) // 2
         y = (self.screen_height - 150) // 2
         self.dialog_inventory.geometry(f"300x150+{x}+{y}")
+        # 禁止操作主界面
+        self.root.attributes("-disabled", True)
+        # 置于root顶
+        self.dialog_inventory.transient(self.root)
         # 设置关闭事件
         self.dialog_inventory.protocol("WM_DELETE_WINDOW", self.on_closing_dialog_inventory)
-        # # 设置弹框顶置
-        # self.dialog_inventory.attributes("-topmost", True)
         
         # 配置行和列的权重，使它们可以伸缩
         self.dialog_inventory.grid_rowconfigure(0, weight=1)
@@ -394,8 +392,8 @@ class InventoryApp:
         modify_item(self,product_name, quantitym, "add", index, parent=self.root)
         # 刷新页面
         self.show_inventory_management()
-        # 关闭弹窗
-        self.on_closing_dialog_inventory()
+        # # 关闭弹窗
+        # self.on_closing_dialog_inventory()
     
     # 减少产品数量
     def remove_product(self, product_name, product_quantity, quantitym, index):
@@ -406,18 +404,16 @@ class InventoryApp:
         modify_item(self, product_name, quantitym, "remove", index, parent=self.root)
         # 刷新页面
         self.show_inventory_management()
-        # 关闭弹窗
-        self.on_closing_dialog_inventory()
+        # # 关闭弹窗
+        # self.on_closing_dialog_inventory()
 
     # 监听dialog_inventory窗口的关闭事件
     def on_closing_dialog_inventory(self):
         print("关闭弹窗")
         self.root.attributes("-disabled", False)
-        # root到顶层
-        self.root.attributes("-topmost", True)
+        # 聚焦到主窗口
+        self.root.focus_force()
         self.dialog_inventory.destroy()
-        # root取消顶层
-        self.root.attributes("-topmost", False)
 
     # 修改库存逻辑验证
     def logic_verify(self, product_quantity, quantitym, type):
@@ -436,20 +432,7 @@ class InventoryApp:
                 messagebox.showerror("错误", "减少数量大于库存数量")
                 return False
         return True
-            
         
-        # if not event.widget.get().isdigit():
-        #     messagebox.showerror("错误", "请输入数字")
-        #     event.widget.delete(0, tk.END)
-        #     event.widget.insert(0, 1)
-        
-        # content = event.widget.get()
-        
-    
-    # 清空库存物品
-    def clear_inventory_frame(self):
-        for widget in self.inventory_frame.winfo_children():
-            widget.destroy()
     
     # 创建库存类别管理页面
     def create_category_management(self):
@@ -495,9 +478,9 @@ class InventoryApp:
 
         # 获取库存数据
         self.kucun = load_kucun()
-        # 往tree中插入数据
+        # 往tree中插入数据,备注只显示部分
         for row in self.kucun:
-            self.tree_category.insert('', 'end', values=(row[0], row[3]))
+            self.tree_category.insert('', 'end', values=(row[0], row[3][:5]+'...'))
 
         # # 往tree中插入数据->测试
         # for i in range(100):
@@ -555,8 +538,8 @@ class InventoryApp:
         self.dialog_category.geometry(f"300x150+{x}+{y}")
         # # 设置关闭事件
         # self.dialog_category.protocol("WM_DELETE_WINDOW", self.on_closing_dialog_category)
-        # # 设置弹框顶置
-        self.dialog_category.attributes("-topmost", True)
+        # 聚焦到弹窗
+        self.dialog_category.focus_force()
         # 显示产品名称
         tk.Label(self.dialog_category, text="产品名称:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
         tk.Label(self.dialog_category, text=item_data[0]).grid(row=0, column=1, padx=10, pady=5, sticky="w")
@@ -564,7 +547,8 @@ class InventoryApp:
         tk.Label(self.dialog_category, text="备注:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
         text = tk.Text(self.dialog_category, width=27, height=8)
         text.grid(row=1, column=1, padx=10, pady=5, sticky="w")
-        text.insert(tk.END, item_data[1])
+        # 显示完整备注
+        text.insert(tk.END, self.kucun[self.selected_item_index][3])
         text.config(state=tk.DISABLED)
 
         # 接触禁止操作主界面
@@ -583,11 +567,6 @@ class InventoryApp:
     
     # 添加物品事件
     def add_item_event(self):
-        # if self.verify_user():
-        #     item_name = self.item_name.get()
-        #     quantity = int(self.item_quantity.get())
-        #     add_item(item_name, quantity)
-        #     messagebox.showinfo("成功", "添加成功")
         # 弹出添加物品对话框
         self.dialog_add_item_category = tk.Toplevel(self.category_frame)
         self.dialog_add_item_category.title("添加物品")
@@ -595,6 +574,10 @@ class InventoryApp:
         # 配置对话框的列宽权重，让列可以扩展
         self.dialog_add_item_category.grid_columnconfigure(0, weight=1)
         self.dialog_add_item_category.grid_columnconfigure(1, weight=1)
+        # 设置关闭事件
+        self.dialog_add_item_category.protocol("WM_DELETE_WINDOW", self.on_closing_dialog_add_item_category)
+        # 置于root顶
+        self.dialog_add_item_category.transient(self.root)
         # 禁止操作主界面
         self.root.attributes("-disabled", True)
         # 在屏幕中央显示
@@ -620,43 +603,73 @@ class InventoryApp:
         # 添加按钮
         tk.Button(self.dialog_add_item_category, text="添加", height=2, width=5, command=lambda: self.category_add_commit_item_event(item_name.get(), item_quantity.get(), comment_quantity.get("1.0", "end-1c"))).grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
 
-        # 解除禁止操作主界面
-        self.root.attributes("-disabled", False)
-    
+
     # 提交添加物品事件
     def category_add_commit_item_event(self, item_name, item_quantity, comment_text): 
         # 验证逻辑是否合法
         # 1、验证物品名称是否为空
         if not item_name:
             messagebox.showerror("错误", "请输入物品名称")
+            # 聚焦到弹窗
+            self.dialog_add_item_category.focus_force()
             return False
         # 2、验证quantitym是否为数字
         if not item_quantity.isdigit():
             messagebox.showerror("错误", "请输入数字")
+            # 聚焦到弹窗
+            self.dialog_add_item_category.focus_force()
             return False
         # 3、验证quantitym是否大于0
         if int(item_quantity) < 0:
             messagebox.showerror("错误", "请输入大于等于0的数字")
+            # 聚焦到弹窗
+            self.dialog_add_item_category.focus_force()
             return False
         
+        # 验证操作人员，验证通过才能进行操作
+        verify_result = verify_user_ui(self.dialog_add_item_category)
+        if not verify_result:
+            return
         # 生成唯一ID
         id = generate_id('item')
         print('添加物品:', item_name, id, item_quantity, comment_text)
         # 写入库存文件
         with open(kucun_path, 'a', encoding='utf-8') as file:
             file.write(f"{item_name}|@|{id}|@|{item_quantity}|@|{comment_text}\n")
+        # 写入库存修改日志
+        with open(modify_inventory_log_path, 'a', encoding='utf-8') as file:
+            file.write(f'{item_name}|@| add|@| {item_quantity}|@| {item_quantity}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
+        # 写入事件日志
+        with open(event_log_path, 'a', encoding='utf-8') as file:
+            file.write(f'添加新物品|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 数量: {item_quantity}|@| {datetime.datetime.now()}\n')
         # 刷新页面
         self.show_category_management()
-        # 关闭弹窗
+        # 解除禁止操作主界面
+        self.root.attributes("-disabled", False)
+    
+    # 提交物品弹窗关闭事件
+    def on_closing_dialog_add_item_category(self):
+        print("关闭提交弹窗")
+        self.root.attributes("-disabled", False)
+        # 聚焦到主窗口
+        self.root.focus_force()
         self.dialog_add_item_category.destroy()
     
     # 删除物品事件
     def remove_item_event(self):
-        if self.verify_user():
-            item_name = self.item_name.get()
-            quantity = int(self.item_quantity.get())
-            remove_item(item_name, quantity)
-            messagebox.showinfo("成功", "删除成功")
+        # 检查是否选中物品
+        if self.selected_item_index is None:
+            messagebox.showerror("错误", "请选择物品")
+            return
+        # 弹出员工验证对话框
+        verify_result = verify_user_ui(self.root)
+        if not verify_result:
+            return
+        # 获取物品信息
+        item_name, item_id, item_quantity, item_comment = self.kucun[self.selected_item_index]
+        print('删除物品:', item_name, item_id, item_quantity, item_comment)
+        # 
+
     
     # 修改物品事件
     def modify_item_event(self):

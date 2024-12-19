@@ -1,28 +1,21 @@
 import tkinter as tk
 
+# 创建主窗口
 root = tk.Tk()
-root.geometry("600x300")
+root.title("主窗口")
+root.geometry("300x200")
 
-left_frame = tk.Frame(root, bg="red", width=100, height=300)
-left_frame.pack(side="left", padx=(20, 0), fill="y")
+# 创建一个窗口前置功能
+def create_front_window():
+    top = tk.Toplevel(root)
+    top.title("前置窗口")
+    top.geometry("200x100")
+    # 确保仅在主窗口前置
+    top.transient(root)
+    top.focus_force()
 
-right_frame = tk.Frame(root, bg="blue", width=100, height=300)
-right_frame.pack(side="right", padx=(0, 20), fill="y")
+# 添加按钮触发窗口前置
+btn = tk.Button(root, text="弹出前置窗口", command=create_front_window)
+btn.pack(pady=50)
 
 root.mainloop()
-
-# import tkinter as tk
-
-# root = tk.Tk()
-# root.geometry("600x300")
-
-# left_frame = tk.Frame(root, bg="red", width=100, height=300)
-# left_frame.grid(row=0, column=0, sticky="w")
-
-# right_frame = tk.Frame(root, bg="blue", width=100, height=300)
-# right_frame.grid(row=0, column=1, sticky="e")
-
-# root.columnconfigure(0, weight=1)
-# root.columnconfigure(1, weight=1)
-
-# root.mainloop()
