@@ -11,6 +11,7 @@ kucun_path = 'files/kucun.txt'
 event_log_path = 'files/event_log.txt'
 modify_inventory_log_path = 'files/modify_inventory_log.txt'
 users_path = 'files/users.txt'
+items_folder_path = 'files/items/'
 
 # 生成唯一ID
 def generate_id(prefix='ID'):
@@ -146,7 +147,7 @@ def verify_user_ui(parent):
         messagebox.showerror("错误", "用户验证失败")
         return False
     else:
-        messagebox.showinfo("成功", "用户验证成功")
+        # messagebox.showinfo("成功", "用户验证成功")
         return verify_result
 
 
@@ -166,6 +167,10 @@ class VerifyDialog(simpledialog.Dialog):
         
         self.user_id_entry.grid(row=0, column=1)
         self.password_entry.grid(row=1, column=1)
+
+        # 测试添加默认值
+        self.user_id_entry.insert(0, "root")
+        self.password_entry.insert(0, "1234")
         
         return self.user_id_entry
     
@@ -642,10 +647,14 @@ class InventoryApp:
         # 写入事件日志
         with open(event_log_path, 'a', encoding='utf-8') as file:
             file.write(f'添加新物品|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 数量: {item_quantity}|@| {datetime.datetime.now()}\n')
+        # 提示添加成功
+        messagebox.showinfo("提示", "添加成功")
         # 刷新页面
         self.show_category_management()
         # 解除禁止操作主界面
         self.root.attributes("-disabled", False)
+        # 聚焦到主窗口
+        self.root.focus_force()
     
     # 提交物品弹窗关闭事件
     def on_closing_dialog_add_item_category(self):
@@ -667,17 +676,130 @@ class InventoryApp:
             return
         # 获取物品信息
         item_name, item_id, item_quantity, item_comment = self.kucun[self.selected_item_index]
-        print('删除物品:', item_name, item_id, item_quantity, item_comment)
-        # 
+        print('要删除的物品信息:', item_name, item_id, item_quantity, item_comment)
+
+        # 读取库存文件
+        self.kucun = load_kucun()
+        # 删除物品
+        self.kucun.pop(self.selected_item_index)
+        # 写入文件
+        with open(kucun_path, 'w', encoding='utf-8') as file:
+            file.write("name|@| id|@| num|@| command\n")
+            for row in self.kucun:
+                # file.write(f"{row[0]}|@|{row[1]}|@|{row[2]}\n")
+                w_str = ""+row[0]
+                for i in range(1,len(row)):
+                    w_str += "|@|"+row[i]
+                file.write(w_str+"\n")
+        # 写入库存修改日志
+        with open(modify_inventory_log_path, 'a', encoding='utf-8') as file:
+            file.write(f'{item_name}|@| remove|@| {item_quantity}|@| 0|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
+        # 写入事件日志
+        with open(event_log_path, 'a', encoding='utf-8') as file:
+            file.write(f'删除物品|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 数量: {item_quantity}|@| {datetime.datetime.now()}\n')
+        # 提示删除成功
+        messagebox.showinfo("提示", "删除成功")
+        # 聚焦到主窗口
+        self.root.focus_force()
+        # 刷新页面
+        self.show_category_management()
 
     
     # 修改物品事件
     def modify_item_event(self):
-        if self.verify_user():
-            item_name = self.item_name.get()
-            quantity = int(self.item_quantity.get())
-            modify_item(item_name, quantity)
-            messagebox.showinfo("成功", "修改成功")
+        # 提交修改物品事件
+        def category_modify_commit_item_event(self, item_name_entry, comment_text): 
+            # 原来物品信息
+            item_name, item_id, item_quantity, item_comment = self.kucun[self.selected_item_index]
+            print('修改后物品:', item_name_entry, item_id, item_quantity, comment_text)
+
+            # 修改物品信息
+            self.kucun[self.selected_item_index] = [item_name_entry, item_id, item_quantity, comment_text]
+
+            # 写入库存文件
+            with open(kucun_path, 'w', encoding='utf-8') as file:
+                file.write("name|@| id|@| num|@| command\n")
+                for row in self.kucun:
+                    # file.write(f"{row[0]}|@|{row[1]}|@|{row[2]}\n")
+                    w_str = ""+row[0]
+                    for i in range(1,len(row)):
+                        w_str += "|@|"+row[i]
+                    file.write(w_str+"\n")
+            ########################################################->明天修改
+            # 不用写入库存修改，因为库存数量没有改变，需要修改库存记录名称，单独开表
+            # # 写入库存修改日志
+            # with open(modify_inventory_log_path, 'a', encoding='utf-8') as file:
+            #     file.write(f'{item_name}|@| modify|@| {item_quantity}|@| {item_quantity}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
+            # 写入事件日志
+            with open(event_log_path, 'a', encoding='utf-8') as file:
+                file.write(f'修改物品信息|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 备注: {item_comment}；修改为： 货物：{item_name_entry}，备注：{comment_text}|@| {datetime.datetime.now()}\n')
+            # 提示修改成功
+            messagebox.showinfo("提示", "修改成功")
+            # 刷新页面
+            self.show_category_management()
+            # 解除禁止操作主界面
+            self.root.attributes("-disabled", False)
+            # 聚焦到主窗口
+            self.root.focus_force()
+    
+        # 修改物品弹窗关闭事件
+        def on_closing_dialog_modify_item_category():
+            print("关闭提交弹窗")
+            self.root.attributes("-disabled", False)
+            # 聚焦到主窗口
+            self.root.focus_force()
+            self.dialog_modify_item_category.destroy()
+
+        # 检查是否选中物品
+        if self.selected_item_index is None:
+            messagebox.showerror("错误", "请选择物品")
+            return
+        # 弹出员工验证对话框
+        verify_result = verify_user_ui(self.root)
+        if not verify_result:
+            return
+        # 获取物品信息
+        item_name, item_id, item_quantity, item_comment = self.kucun[self.selected_item_index]
+        print('修改物品:', item_name, item_id, item_quantity, item_comment)
+
+        # 弹出修改物品对话框
+        self.dialog_modify_item_category = tk.Toplevel(self.category_frame)
+        self.dialog_modify_item_category.title("修改物品")
+        self.dialog_modify_item_category.geometry("300x150")
+        # 配置对话框的列宽权重，让列可以扩展
+        self.dialog_modify_item_category.grid_columnconfigure(0, weight=1)
+        self.dialog_modify_item_category.grid_columnconfigure(1, weight=1)
+        # 设置关闭事件
+        self.dialog_modify_item_category.protocol("WM_DELETE_WINDOW", on_closing_dialog_modify_item_category)
+        # 置于root顶
+        self.dialog_modify_item_category.transient(self.root)
+        # 禁止操作主界面
+        self.root.attributes("-disabled", True)
+        # 在屏幕中央显示
+        x = (self.screen_width - 420) // 2
+        y = (self.screen_height - 250) // 2
+        self.dialog_modify_item_category.geometry(f"420x250+{x}+{y}")
+        # 物品名称
+        tk.Label(self.dialog_modify_item_category, text="物品名称:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        item_name_entry = tk.Entry(self.dialog_modify_item_category)
+        item_name_entry.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
+        item_name_entry.config(width=10)
+        item_name_entry.insert(0, item_name)
+
+        # 第二行添加备注
+        tk.Label(self.dialog_modify_item_category, text="备注：").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        # 添加备注框
+        comment_quantity = tk.Text(self.dialog_modify_item_category, width=27, height=8)
+        comment_quantity.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
+        # 添加默认值
+        comment_quantity.insert(tk.END, item_comment)
+
+        # 第三行加入空白标签
+        tk.Label(self.dialog_modify_item_category, text="").grid(row=2, column=0, columnspan=2)
+
+        # 添加按钮
+        tk.Button(self.dialog_modify_item_category, text="修改", height=2, width=5, command=lambda: category_modify_commit_item_event(self, item_name_entry.get(), comment_quantity.get("1.0", "end-1c"))).grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+
     
     # 生成日报表
     def generate_daily_report(self):
