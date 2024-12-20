@@ -61,7 +61,7 @@ def modify_item(myself, item_name, quantity, type='add', index=0, parent=None):
     # 验证操作人员，验证通过才能进行操作
     verify_result = verify_user_ui(parent)
     if not verify_result:
-        return
+        return False
      
     # 1、操作库存数量文件
     # 先读取文件，再写入
@@ -99,6 +99,10 @@ def modify_item(myself, item_name, quantity, type='add', index=0, parent=None):
         with open(f'{modify_inventory_log_path}', 'a', encoding='utf-8') as file:
             # 记录库存变更  （物品名称|@| 修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间）
             file.write(f'{item_name}|@| add|@| {quantity}|@| {myself.kucun[index][2]}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
+        # 修改物品表格文件->id.txt【修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间  】,在items文件夹下
+        with open(f'{items_folder_path}{myself.kucun[index][1]}.txt', 'a', encoding='utf-8') as file:
+            file.write(f'add|@| {quantity}|@| {myself.kucun[index][2]}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
+
             
     elif type == 'remove':
         # 2、对此次操作进行记录，记录到事件操作表和修改库存表
@@ -108,6 +112,10 @@ def modify_item(myself, item_name, quantity, type='add', index=0, parent=None):
         with open(f'{modify_inventory_log_path}', 'a', encoding='utf-8') as file:
             # 记录库存变更  （物品名称|@| 修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间）
             file.write(f'{item_name}|@| remove|@| {quantity}|@| {myself.kucun[index][2]}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
+        # 修改物品表格文件->id.txt【修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间  】,在items文件夹下
+        with open(f'{items_folder_path}{myself.kucun[index][1]}.txt', 'a', encoding='utf-8') as file:
+            file.write(f'remove|@| {quantity}|@| {myself.kucun[index][2]}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
+    return True
 
 
 # 统计功能
@@ -394,7 +402,9 @@ class InventoryApp:
         if not self.logic_verify(product_quantity, quantitym, 'add'):
             return
         # 添加产品数量
-        modify_item(self,product_name, quantitym, "add", index, parent=self.root)
+        if modify_item(self,product_name, quantitym, "add", index, parent=self.root):
+            # 关闭弹窗
+            self.on_closing_dialog_inventory()
         # 刷新页面
         self.show_inventory_management()
         # # 关闭弹窗
@@ -406,7 +416,9 @@ class InventoryApp:
         if not self.logic_verify(product_quantity, quantitym, 'remove'):
             return
         # 减少产品数量
-        modify_item(self, product_name, quantitym, "remove", index, parent=self.root)
+        if modify_item(self, product_name, quantitym, "remove", index, parent=self.root):
+            # 关闭弹窗
+            self.on_closing_dialog_inventory()
         # 刷新页面
         self.show_inventory_management()
         # # 关闭弹窗
@@ -562,8 +574,125 @@ class InventoryApp:
 
     # 创建员工列表页面
     def create_employee_list(self):
+        # 员工页面鼠标单击事件
+        def on_click_employee(self, event):
+            # 获取鼠标指针所在行的ID
+            row_id = self.tree_employee.identify_row(event.y)
+            # 获取行数据
+            item_data = self.tree_employee.item(row_id, "values")
+
+            # 可能选中的是空白处
+            if not item_data:
+                print('单击选中空白处')
+                return
+            # 获取行的index
+            self.selected_employee_index = self.tree_employee.index(row_id)
+            print('单击选中行：', self.selected_item)
+            self.selected_employee_index = self.selected_item
+            
+        # 员工页面鼠标双击事件
+        def on_click_double_employee(self, event):
+            # 获取鼠标指针所在行的ID
+            row_id = self.tree_employee.identify_row(event.y)
+            # 获取行数据
+            item_data = self.tree_employee.item(row_id, "values")
+
+            # 可能选中的是空白处
+            if not item_data:
+                print('双击选中空白处')
+                return
+            
+            # 获取行的index
+            self.selected_item = self.tree_employee.index(row_id)
+            print('双击选中行：', self.selected_item)
+            # 弹出新窗口，显示详细信息
+            self.dialog_employee = tk.Toplevel(self.root)
+            self.dialog_employee.title("物品详细信息")
+            self.dialog_employee.geometry("300x150")
+            # 不可改变大小
+            self.dialog_employee.resizable(False, False)
+            # 禁止操作主界面
+            self.root.attributes("-disabled", True)
+            # 在屏幕中央显示
+            x = (self.screen_width - 300) // 2
+            y = (self.screen_height - 150) // 2
+            self.dialog_employee.geometry(f"300x150+{x}+{y}")
+            # # 设置关闭事件
+            # self.dialog_employee.protocol("WM_DELETE_WINDOW", self.on_closing_dialog_employee)
+            # 聚焦到弹窗
+            self.dialog_employee.focus_force()
+            # 显示产品名称
+            tk.Label(self.dialog_employee, text="产品名称:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+            tk.Label(self.dialog_employee, text=item_data[0]).grid(row=0, column=1, padx=10, pady=5, sticky="w")
+            # 显示完整备注，使用文字框，不可编辑
+            tk.Label(self.dialog_employee, text="备注:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+            text = tk.Text(self.dialog_employee, width=27, height=8)
+            text.grid(row=1, column=1, padx=10, pady=5, sticky="w")
+            # 显示完整备注
+            text.insert(tk.END, self.kucun[self.selected_item_index][3])
+            text.config(state=tk.DISABLED)
+
+            # 接触禁止操作主界面
+            self.root.attributes("-disabled", False)
+        
         tk.Label(self.main_frame, text="员工列表页面").pack()
-        # 添加员工列表的具体实现
+        # # 添加员工列表的具体实现
+        # 添加一个新的employeeFrame主页面
+        # 定义状态变量，选中的物品坐标
+        self.selected_employee_index = None
+
+        # 添加一个新的employeeFrame主页面
+        self.employee_frame = tk.Frame(self.main_frame)
+        self.employee_frame.pack(fill=tk.BOTH, expand=True)
+        # # 设置测试背景颜色
+        # self.employee_frame.config(bg='red')
+        # # 设置测试背景颜色
+        # self.employee_frame.config(bg='red')
+
+        # 添加两个frame
+        self.left_frame_employee = tk.Frame(self.employee_frame, width=400)
+        self.left_frame_employee.pack(side=tk.LEFT, padx=(40,0), fill=tk.Y)
+        self.right_frame_employee = tk.Frame(self.employee_frame, width=260)
+        self.right_frame_employee.pack(side=tk.RIGHT, padx=(0,40), fill=tk.Y)
+
+        # 左侧frame加入view和滑轮
+        self.canvas_employee = tk.Canvas(self.left_frame_employee)
+        columns = {"员工工号":190,"员工姓名":190}
+        self.tree_employee = ttk.Treeview(self.canvas_employee, columns=list(columns), show='headings')
+        self.scrollbar_employee = tk.Scrollbar(self.left_frame_employee, orient='vertical')
+        for text, width in columns.items():  # 批量设置列属性
+            self.tree_employee.heading(text, text=text, anchor='center')
+            self.tree_employee.column(text, anchor='center', width=width, stretch=True)  # stretch 不自动拉伸
+        self.tree_employee.pack(fill=tk.BOTH, expand=True)
+        self.canvas_employee.pack(side=tk.LEFT, fill=tk.BOTH, expand=True) 
+        self.scrollbar_employee.pack(side=tk.RIGHT, fill='y')
+
+        # 绑定tree和Scrollbar
+        self.scrollbar_employee.configure(command=self.tree_employee.yview)
+        self.tree_employee.configure(yscrollcommand=self.scrollbar_employee.set)
+
+        # 绑定tree的单击事件
+        self.tree_employee.bind('<Button-1>', on_click_employee)
+        # 绑定tree的双击事件
+        self.tree_employee.bind('<Double-1>', on_click_double_employee)
+
+        # 获取库存数据
+        self.kucun = load_kucun()
+        # 往tree中插入数据,备注只显示部分
+        for row in self.kucun:
+            self.tree_employee.insert('', 'end', values=(row[0], row[3][:5]+'...'))
+
+        # # 往tree中插入数据->测试
+        # for i in range(100):
+        #     self.tree_employee.insert('', 'end', values=(f'物品{i}', f'备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注{i}'))
+
+        # 右侧frame加入标签按钮,按钮宽120，高35
+        self.label_employee = tk.Label(self.right_frame_employee, text="操作按钮", width=20, height=2, font=("Arial", 15, "bold")).pack(side=tk.TOP)
+        tk.Button(self.right_frame_employee, text="添加物品", command=self.add_item_event, width=20, height=2).pack(side=tk.TOP, pady=(80,30))
+        tk.Button(self.right_frame_employee, text="删除物品", command=self.remove_item_event, width=20, height=2).pack(side=tk.TOP, pady=30)
+        tk.Button(self.right_frame_employee, text="修改物品", command=self.modify_item_event, width=20, height=2).pack(side=tk.TOP, pady=30)
+
+
 
     # 创建库存统计页面
     def create_inventory_report(self):
@@ -638,6 +767,8 @@ class InventoryApp:
         # 生成唯一ID
         id = generate_id('item')
         print('添加物品:', item_name, id, item_quantity, comment_text)
+        # 去掉备注中的换行符
+        comment_text = comment_text.replace('\n', '  ')
         # 写入库存文件
         with open(kucun_path, 'a', encoding='utf-8') as file:
             file.write(f"{item_name}|@|{id}|@|{item_quantity}|@|{comment_text}\n")
@@ -647,6 +778,10 @@ class InventoryApp:
         # 写入事件日志
         with open(event_log_path, 'a', encoding='utf-8') as file:
             file.write(f'添加新物品|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 数量: {item_quantity}|@| {datetime.datetime.now()}\n')
+        # 创建物品表格文件->id.txt【修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间  】,在items文件夹下
+        with open(f'{items_folder_path}{id}.txt', 'w', encoding='utf-8') as file:
+            file.write("修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间\n")
+            file.write(f"create|@| {item_quantity}|@| {item_quantity}|@| {verify_result[0]}|@| {verify_result[1]}|@| {datetime.datetime.now()}\n")
         # 提示添加成功
         messagebox.showinfo("提示", "添加成功")
         # 刷新页面
@@ -697,6 +832,8 @@ class InventoryApp:
         # 写入事件日志
         with open(event_log_path, 'a', encoding='utf-8') as file:
             file.write(f'删除物品|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 数量: {item_quantity}|@| {datetime.datetime.now()}\n')
+        # 删除物品表格文件
+        os.remove(f'{items_folder_path}{item_id}.txt')
         # 提示删除成功
         messagebox.showinfo("提示", "删除成功")
         # 聚焦到主窗口
