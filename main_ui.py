@@ -23,9 +23,10 @@ def load_users():
     users = {}
     if os.path.exists(f'{users_path}'):
         with open(f'{users_path}', 'r', encoding='utf-8') as file:
-            for line in file:
-                id, name, password = line.strip().split('|@|')
-                users[id] = {'name': name, 'password': password}
+            lines = file.readlines()
+            for line in lines[1:]:
+                id, job_number, name, password = line.strip().split('|@|')
+                users[job_number] = {'id': id, 'name': name, 'password': password}
     return users
 
 # 读取库存文件
@@ -38,11 +39,11 @@ def load_kucun():
             kucun.append([name, id, num, comment])
     return kucun
 
-def verify_user(id, password):
+def verify_user(job_number, password):
     users = load_users()
     print(users)
-    if id in users and users[id]['password'].strip() == password:
-        return [id, users[id]['name'].strip()]
+    if job_number in users and users[job_number]['password'].strip() == password:
+        return [job_number, users[job_number]['name'].strip()]
     return False
 
 # 库存管理
@@ -156,6 +157,7 @@ def verify_user_ui(parent):
         return False
     else:
         # messagebox.showinfo("成功", "用户验证成功")
+        print("该用户信息：", verify_result)
         return verify_result
 
 
@@ -201,6 +203,8 @@ class InventoryApp:
 
         # 库存
         self.kucun = None
+        # 员工
+        self.employee = None
 
         self.root = root
         self.root.title("寺庙库存管理系统")
@@ -575,27 +579,32 @@ class InventoryApp:
     # 创建员工列表页面
     def create_employee_list(self):
         # 员工页面鼠标单击事件
-        def on_click_employee(self, event):
+        def on_click_employee(event):
             # 获取鼠标指针所在行的ID
             row_id = self.tree_employee.identify_row(event.y)
             # 获取行数据
             item_data = self.tree_employee.item(row_id, "values")
+            # 员工id
+            employee_id = self.tree_employee.item(row_id, "text")
 
             # 可能选中的是空白处
             if not item_data:
                 print('单击选中空白处')
                 return
             # 获取行的index
-            self.selected_employee_index = self.tree_employee.index(row_id)
-            print('单击选中行：', self.selected_item)
-            self.selected_employee_index = self.selected_item
+            # self.selected_employee = self.tree_employee.index(row_id)
+            # print('单击选中行：', self.selected_employee)
+            # self.selected_employee_index = self.selected_employee
+            self.selected_employee_job_number = item_data[0]
             
         # 员工页面鼠标双击事件
-        def on_click_double_employee(self, event):
+        def on_click_double_employee(event):
             # 获取鼠标指针所在行的ID
             row_id = self.tree_employee.identify_row(event.y)
             # 获取行数据
             item_data = self.tree_employee.item(row_id, "values")
+            # 员工id
+            employee_id = self.tree_employee.item(row_id, "text")
 
             # 可能选中的是空白处
             if not item_data:
@@ -603,8 +612,8 @@ class InventoryApp:
                 return
             
             # 获取行的index
-            self.selected_item = self.tree_employee.index(row_id)
-            print('双击选中行：', self.selected_item)
+            self.selected_employee = self.tree_employee.index(row_id)
+            print('双击选中行：', self.selected_employee)
             # 弹出新窗口，显示详细信息
             self.dialog_employee = tk.Toplevel(self.root)
             self.dialog_employee.title("物品详细信息")
@@ -629,17 +638,212 @@ class InventoryApp:
             text = tk.Text(self.dialog_employee, width=27, height=8)
             text.grid(row=1, column=1, padx=10, pady=5, sticky="w")
             # 显示完整备注
-            text.insert(tk.END, self.kucun[self.selected_item_index][3])
+            text.insert(tk.END, self.kucun[self.selected_employee_index][3])
             text.config(state=tk.DISABLED)
 
             # 接触禁止操作主界面
             self.root.attributes("-disabled", False)
         
+            # 添加物品事件
+        
+        def add_employee_event():
+            # 弹出添加物品对话框
+            self.dialog_add_employee = tk.Toplevel(self.employee_frame)
+            self.dialog_add_employee.title("添加员工")
+            # self.dialog_add_employee.geometry("300x150")
+            # 配置对话框的列宽权重，让列可以扩展
+            self.dialog_add_employee.grid_columnconfigure(0, weight=1)
+            self.dialog_add_employee.grid_columnconfigure(1, weight=1)
+            # 设置关闭事件
+            self.dialog_add_employee.protocol("WM_DELETE_WINDOW", on_closing_dialog_add_employee)
+            # 置于root顶
+            self.dialog_add_employee.transient(self.root)
+            # 禁止操作主界面
+            self.root.attributes("-disabled", True)
+            # 在屏幕中央显示
+            x = (self.screen_width - 300) // 2
+            y = (self.screen_height - 150) // 2
+            self.dialog_add_employee.geometry(f"300x150+{x}+{y}")
+            # 用户姓名
+            tk.Label(self.dialog_add_employee, text="用户姓名:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+            user_name = tk.Entry(self.dialog_add_employee)
+            user_name.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
+            user_name.config(width=10)
+            # 用户密码
+            tk.Label(self.dialog_add_employee, text="用户密码:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+            user_pw = tk.Entry(self.dialog_add_employee, show='*')
+            user_pw.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
+            user_pw.config(width=10)
+            # 第三行加入空白标签
+            tk.Label(self.dialog_add_employee, text="").grid(row=2, column=0, columnspan=2)
+
+            # 添加按钮
+            tk.Button(self.dialog_add_employee, text="添加", height=2, width=5, command=lambda: employee_add_commit_employee_event(user_name.get(), user_pw.get())).grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+
+
+        # 提交添加物品事件
+        def employee_add_commit_employee_event(employee_name, employee_password): 
+            # 验证逻辑是否合法
+            if not employee_name:
+                messagebox.showerror("错误", "请输入员工姓名")
+                return
+            if not employee_password:
+                messagebox.showerror("错误", "请输入员工密码")
+                return
+            # 添加员工
+            # 生成员工id
+            employee_id = generate_id("user")
+            # 员工工号
+            employee_job_number = employee_id.replace("user", "")
+            # self.employee.append([employee_name, employee_password])
+            # 添加员工
+            self.employee[employee_job_number] = [employee_name, employee_password]
+            # 写入文件
+            with open(users_path, 'w', encoding='utf-8') as file:
+                for row in self.employee:
+                    file.write(f"{row[0]}|@|{row[1]}\n")
+            # 提示添加成功
+            messagebox.showinfo("提示", "添加成功")
+            # 关闭弹窗
+            on_closing_dialog_add_employee()
+            # 刷新页面
+            self.show_employee_list()
+        
+        # 提交物品弹窗关闭事件
+        def on_closing_dialog_add_employee():
+            print("关闭提交弹窗")
+            self.root.attributes("-disabled", False)
+            # 聚焦到主窗口
+            self.root.focus_force()
+            self.dialog_add_employee.destroy()
+        
+        # 删除物品事件
+        def remove_employee_event(self):
+            # 检查是否选中物品
+            if self.selected_employee_index is None:
+                messagebox.showerror("错误", "请选择员工")
+                return
+            # 弹出员工验证对话框
+            verify_result = verify_user_ui(self.root)
+            if not verify_result:
+                return
+            # 获取员工信息
+            employee_name, employee_password = self.employee[self.selected_employee_index]
+            print('删除员工:', employee_name, employee_password)
+            # 删除员工
+            self.employee.pop(self.selected_employee_index)
+            # 写入员工文件
+            with open(users_path, 'w', encoding='utf-8') as file:
+                for row in self.employee:
+                    file.write(f"{row[0]}|@|{row[1]}\n")
+            # 写入事件日志
+            with open(event_log_path, 'a', encoding='utf-8') as file:
+                file.write(f'删除员工|@| {verify_result[0]}|@| {verify_result[1]}|@| 员工: {employee_name}|@| {datetime.datetime.now()}\n')
+            # 提示删除成功
+            messagebox.showinfo("提示", "删除成功")
+            # 刷新页面
+            self.show_employee_list()
+            # 解除禁止操作主界面
+            self.root.attributes("-disabled", False)
+            # 聚焦到主窗口
+            self.root.focus_force()
+
+        
+        # 修改物品事件
+        def modify_employee_event(self):
+            # 提交修改员工事件
+            def category_modify_commit_employee_event(self, item_name_entry, comment_text): 
+                # 原来员工信息
+                employee_name, employee_password = self.employee[self.selected_employee_index]
+                print('修改员工:', employee_name, employee_password)
+
+                # 修改员工信息
+                self.employee[self.selected_employee_index] = [item_name_entry, comment_text]
+
+                # 写入库存文件
+                with open(kucun_path, 'w', encoding='utf-8') as file:
+                    file.write("name|@| id|@| num|@| command\n")
+                    for row in self.kucun:
+                        # file.write(f"{row[0]}|@|{row[1]}|@|{row[2]}\n")
+                        w_str = ""+row[0]
+                        for i in range(1,len(row)):
+                            w_str += "|@|"+row[i]
+                        file.write(w_str+"\n")
+                # 写入事件日志
+                with open(event_log_path, 'a', encoding='utf-8') as file:
+                    file.write(f'修改员工|@| {verify_result[0]}|@| {verify_result[1]}|@| 员工: {employee_name}|@| {datetime.datetime.now()}\n')
+                # 提示修改成功
+                messagebox.showinfo("提示", "修改成功")
+                # 刷新页面
+                self.show_employee_list()
+                # 解除禁止操作主界面
+                self.root.attributes("-disabled", False)
+                # 聚焦到主窗口
+                self.root.focus_force()
+        
+            # 修改物品弹窗关闭事件
+            def on_closing_dialog_modify_employee():
+                print("关闭修改弹窗")
+                self.root.attributes("-disabled", False)
+                # 聚焦到主窗口
+                self.root.focus_force()
+                self.dialog_modify_employee.destroy()
+
+            # 检查是否选中员工
+            if self.selected_employee_job_number is None:
+                messagebox.showerror("错误", "请选择员工")
+                return
+            # 弹出员工验证对话框
+            verify_result = verify_user_ui(self.root)
+            if not verify_result:
+                return
+            # 获取员工信息
+            employee_name, employee_password = self.employee[self.selected_employee_index]
+            print('修改员工:', employee_name, employee_password)
+
+            # 弹出修改员工对话框
+            self.dialog_modify_employee = tk.Toplevel(self.employee_frame)
+            self.dialog_modify_employee.title("修改员工")
+            self.dialog_modify_employee.geometry("300x150")
+            # 配置对话框的列宽权重，让列可以扩展
+            self.dialog_modify_employee.grid_columnconfigure(0, weight=1)
+            self.dialog_modify_employee.grid_columnconfigure(1, weight=1)
+            # 设置关闭事件
+            self.dialog_modify_employee.protocol("WM_DELETE_WINDOW", on_closing_dialog_modify_employee)
+            # 置于root顶
+            self.dialog_modify_employee.transient(self.root)
+            # 禁止操作主界面
+            self.root.attributes("-disabled", True)
+            # 在屏幕中央显示
+            x = (self.screen_width - 420) // 2
+            y = (self.screen_height - 250) // 2
+            self.dialog_modify_employee.geometry(f"420x250+{x}+{y}")
+            # 物品名称
+            tk.Label(self.dialog_modify_employee, text="员工名称:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+            user_name_entry = tk.Entry(self.dialog_modify_employee)
+            user_name_entry.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
+            user_name_entry.config(width=10)
+            user_name_entry.insert(0, employee_name)
+
+            # 第二行添加密码
+            tk.Label(self.dialog_modify_employee, text="员工密码:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+            user_pw_entry = tk.Entry(self.dialog_modify_employee)
+            user_pw_entry.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
+            user_pw_entry.config(width=10)
+            user_pw_entry.insert(0, employee_password)
+
+            # 第三行加入空白标签
+            tk.Label(self.dialog_modify_employee, text="").grid(row=2, column=0, columnspan=2)
+
+            # 添加按钮
+            tk.Button(self.dialog_modify_employee, text="修改", height=2, width=5, command=lambda: category_modify_commit_employee_event(self, user_name_entry.get(), user_pw_entry.get())).grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+
         tk.Label(self.main_frame, text="员工列表页面").pack()
         # # 添加员工列表的具体实现
         # 添加一个新的employeeFrame主页面
-        # 定义状态变量，选中的物品坐标
-        self.selected_employee_index = None
+        # 定义状态变量，选中的员工id
+        self.selected_employee_job_number = None
+        
 
         # 添加一个新的employeeFrame主页面
         self.employee_frame = tk.Frame(self.main_frame)
@@ -658,7 +862,9 @@ class InventoryApp:
         # 左侧frame加入view和滑轮
         self.canvas_employee = tk.Canvas(self.left_frame_employee)
         columns = {"员工工号":190,"员工姓名":190}
+        # 隐藏第一列（“员工工号”）  
         self.tree_employee = ttk.Treeview(self.canvas_employee, columns=list(columns), show='headings')
+        self.tree_employee.column("员工工号", width=0, stretch=tk.NO)  
         self.scrollbar_employee = tk.Scrollbar(self.left_frame_employee, orient='vertical')
         for text, width in columns.items():  # 批量设置列属性
             self.tree_employee.heading(text, text=text, anchor='center')
@@ -673,24 +879,24 @@ class InventoryApp:
 
         # 绑定tree的单击事件
         self.tree_employee.bind('<Button-1>', on_click_employee)
-        # 绑定tree的双击事件
-        self.tree_employee.bind('<Double-1>', on_click_double_employee)
+        # # 绑定tree的双击事件
+        # self.tree_employee.bind('<Double-1>', on_click_double_employee)
 
         # 获取库存数据
-        self.kucun = load_kucun()
-        # 往tree中插入数据,备注只显示部分
-        for row in self.kucun:
-            self.tree_employee.insert('', 'end', values=(row[0], row[3][:5]+'...'))
+        self.employee = load_users()    # 是一个字典
+        for job_number,value in self.employee.items():
+            # self.tree_employee.insert('', 'end', values=(job_number, value['name']))
+            self.tree_employee.insert('', 'end',text=value['id'], values=(job_number, value['name']))
 
-        # # 往tree中插入数据->测试
-        # for i in range(100):
-        #     self.tree_employee.insert('', 'end', values=(f'物品{i}', f'备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注备注{i}'))
+        # # 往tree中插入数据,备注只显示部分
+        # for row in self.employee:
+        #     self.tree_employee.insert('', 'end', values=(row[0], row[3][:5]+'...'))
 
         # 右侧frame加入标签按钮,按钮宽120，高35
         self.label_employee = tk.Label(self.right_frame_employee, text="操作按钮", width=20, height=2, font=("Arial", 15, "bold")).pack(side=tk.TOP)
-        tk.Button(self.right_frame_employee, text="添加物品", command=self.add_item_event, width=20, height=2).pack(side=tk.TOP, pady=(80,30))
-        tk.Button(self.right_frame_employee, text="删除物品", command=self.remove_item_event, width=20, height=2).pack(side=tk.TOP, pady=30)
-        tk.Button(self.right_frame_employee, text="修改物品", command=self.modify_item_event, width=20, height=2).pack(side=tk.TOP, pady=30)
+        tk.Button(self.right_frame_employee, text="添加员工", command=add_employee_event, width=20, height=2).pack(side=tk.TOP, pady=(80,30))
+        tk.Button(self.right_frame_employee, text="删除员工", command=self.remove_item_event, width=20, height=2).pack(side=tk.TOP, pady=30)
+        tk.Button(self.right_frame_employee, text="员工信息修改", command=self.modify_item_event, width=20, height=2).pack(side=tk.TOP, pady=30)
 
 
 
@@ -767,6 +973,7 @@ class InventoryApp:
         # 生成唯一ID
         id = generate_id('item')
         print('添加物品:', item_name, id, item_quantity, comment_text)
+        # 生成 
         # 去掉备注中的换行符
         comment_text = comment_text.replace('\n', '  ')
         # 写入库存文件
