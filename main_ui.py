@@ -12,6 +12,7 @@ event_log_path = 'files/event_log.txt'
 modify_inventory_log_path = 'files/modify_inventory_log.txt'
 users_path = 'files/users.txt'
 items_folder_path = 'files/items/'
+user_index_temp_path = 'files/user_index_temp.txt'
 
 # 生成唯一ID
 def generate_id(prefix='ID'):
@@ -25,7 +26,7 @@ def load_users():
         with open(f'{users_path}', 'r', encoding='utf-8') as file:
             lines = file.readlines()
             for line in lines[1:]:
-                id, job_number, name, password = line.strip().split('|@|')
+                id, job_number, name, password = line.strip().split('|@| ')
                 users[job_number] = {'id': id, 'name': name, 'password': password}
     return users
 
@@ -39,9 +40,22 @@ def load_kucun():
             kucun.append([name, id, num, comment])
     return kucun
 
+# 得到用户下标标记
+def get_user_index_temp():
+    if os.path.exists(f'{user_index_temp_path}'):
+        with open(f'{user_index_temp_path}', 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+            return int(lines[0].strip())
+    return 0
+
+# 保存用户下标标记
+def save_user_index_temp(index):
+    with open(f'{user_index_temp_path}', 'w', encoding='utf-8') as file:
+        file.write(f'{index}\n')
+
+
 def verify_user(job_number, password):
     users = load_users()
-    print(users)
     if job_number in users and users[job_number]['password'].strip() == password:
         return [job_number, users[job_number]['name'].strip()]
     return False
@@ -594,7 +608,7 @@ class InventoryApp:
             # 获取行的index
             # self.selected_employee = self.tree_employee.index(row_id)
             # print('单击选中行：', self.selected_employee)
-            # self.selected_employee_index = self.selected_employee
+            # self.selected_employee_job_number = self.selected_employee
             self.selected_employee_job_number = item_data[0]
             
         # 员工页面鼠标双击事件
@@ -638,7 +652,7 @@ class InventoryApp:
             text = tk.Text(self.dialog_employee, width=27, height=8)
             text.grid(row=1, column=1, padx=10, pady=5, sticky="w")
             # 显示完整备注
-            text.insert(tk.END, self.kucun[self.selected_employee_index][3])
+            text.insert(tk.END, self.kucun[self.selected_employee_job_number][3])
             text.config(state=tk.DISABLED)
 
             # 接触禁止操作主界面
@@ -647,7 +661,12 @@ class InventoryApp:
             # 添加物品事件
         
         def add_employee_event():
-            # 弹出添加物品对话框
+            # 先弹出验证用户对话框
+            verify_result = verify_user_ui(self.root)
+            if not verify_result:
+                return
+            
+            # 弹出添加员工对话框
             self.dialog_add_employee = tk.Toplevel(self.employee_frame)
             self.dialog_add_employee.title("添加员工")
             # self.dialog_add_employee.geometry("300x150")
@@ -678,11 +697,11 @@ class InventoryApp:
             tk.Label(self.dialog_add_employee, text="").grid(row=2, column=0, columnspan=2)
 
             # 添加按钮
-            tk.Button(self.dialog_add_employee, text="添加", height=2, width=5, command=lambda: employee_add_commit_employee_event(user_name.get(), user_pw.get())).grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+            tk.Button(self.dialog_add_employee, text="添加", height=2, width=5, command=lambda: employee_add_commit_employee_event(user_name.get(), user_pw.get(), verify_result)).grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
 
 
-        # 提交添加物品事件
-        def employee_add_commit_employee_event(employee_name, employee_password): 
+        # 提交添加员工事件
+        def employee_add_commit_employee_event(employee_name, employee_password,verify_result): 
             # 验证逻辑是否合法
             if not employee_name:
                 messagebox.showerror("错误", "请输入员工姓名")
@@ -693,15 +712,19 @@ class InventoryApp:
             # 添加员工
             # 生成员工id
             employee_id = generate_id("user")
-            # 员工工号
-            employee_job_number = employee_id.replace("user", "")
-            # self.employee.append([employee_name, employee_password])
+            # 员工工号-> 88+（user_temp+1）-> 88001,88002,88003...
+            user_index_temp = get_user_index_temp()
+            save_user_index_temp(user_index_temp+1)
+            employee_job_number = 88000 + user_index_temp + 1
             # 添加员工
-            self.employee[employee_job_number] = [employee_name, employee_password]
-            # 写入文件
-            with open(users_path, 'w', encoding='utf-8') as file:
-                for row in self.employee:
-                    file.write(f"{row[0]}|@|{row[1]}\n")
+            self.employee[employee_job_number] = {'id':employee_id, 'name': employee_name, 'password': employee_password}
+            # 添加用户
+            with open(users_path, 'a', encoding='utf-8') as file:
+                file.write(f"{employee_id}|@| {employee_job_number}|@| {employee_name}|@| {employee_password}\n")# id|@| job_number|@| name|@| password
+            # 写入事件日志
+            with open(event_log_path, 'a', encoding='utf-8') as file:
+                file.write(f'添加员工|@| {verify_result[0]}|@| {verify_result[1]}|@| 员工: {employee_name}|@| {datetime.datetime.now()}\n')
+            
             # 提示添加成功
             messagebox.showinfo("提示", "添加成功")
             # 关闭弹窗
@@ -717,10 +740,10 @@ class InventoryApp:
             self.root.focus_force()
             self.dialog_add_employee.destroy()
         
-        # 删除物品事件
-        def remove_employee_event(self):
+        # 删除员工事件
+        def remove_employee_event():
             # 检查是否选中物品
-            if self.selected_employee_index is None:
+            if self.selected_employee_job_number is None:
                 messagebox.showerror("错误", "请选择员工")
                 return
             # 弹出员工验证对话框
@@ -728,14 +751,15 @@ class InventoryApp:
             if not verify_result:
                 return
             # 获取员工信息
-            employee_name, employee_password = self.employee[self.selected_employee_index]
+            employee_id, employee_name, employee_password = self.employee[self.selected_employee_job_number]['id'], self.employee[self.selected_employee_job_number]['name'], self.employee[self.selected_employee_job_number]['password']
             print('删除员工:', employee_name, employee_password)
             # 删除员工
-            self.employee.pop(self.selected_employee_index)
+            self.employee.pop(self.selected_employee_job_number)
             # 写入员工文件
             with open(users_path, 'w', encoding='utf-8') as file:
-                for row in self.employee:
-                    file.write(f"{row[0]}|@|{row[1]}\n")
+                # 重新写入员工文件
+                for job_number, values in self.employee.items():
+                    file.write(f"{values['id']}|@| {job_number}|@| {values['name']}|@| {values['password']}\n")
             # 写入事件日志
             with open(event_log_path, 'a', encoding='utf-8') as file:
                 file.write(f'删除员工|@| {verify_result[0]}|@| {verify_result[1]}|@| 员工: {employee_name}|@| {datetime.datetime.now()}\n')
@@ -749,16 +773,16 @@ class InventoryApp:
             self.root.focus_force()
 
         
-        # 修改物品事件
-        def modify_employee_event(self):
+        # 修改员工事件
+        def modify_employee_event():
             # 提交修改员工事件
             def category_modify_commit_employee_event(self, item_name_entry, comment_text): 
                 # 原来员工信息
-                employee_name, employee_password = self.employee[self.selected_employee_index]
+                employee_name, employee_password = self.employee[self.selected_employee_job_number]
                 print('修改员工:', employee_name, employee_password)
 
                 # 修改员工信息
-                self.employee[self.selected_employee_index] = [item_name_entry, comment_text]
+                self.employee[self.selected_employee_job_number] = [item_name_entry, comment_text]
 
                 # 写入库存文件
                 with open(kucun_path, 'w', encoding='utf-8') as file:
@@ -798,7 +822,7 @@ class InventoryApp:
             if not verify_result:
                 return
             # 获取员工信息
-            employee_name, employee_password = self.employee[self.selected_employee_index]
+            employee_name, employee_password = self.employee[self.selected_employee_job_number]
             print('修改员工:', employee_name, employee_password)
 
             # 弹出修改员工对话框
@@ -895,8 +919,8 @@ class InventoryApp:
         # 右侧frame加入标签按钮,按钮宽120，高35
         self.label_employee = tk.Label(self.right_frame_employee, text="操作按钮", width=20, height=2, font=("Arial", 15, "bold")).pack(side=tk.TOP)
         tk.Button(self.right_frame_employee, text="添加员工", command=add_employee_event, width=20, height=2).pack(side=tk.TOP, pady=(80,30))
-        tk.Button(self.right_frame_employee, text="删除员工", command=self.remove_item_event, width=20, height=2).pack(side=tk.TOP, pady=30)
-        tk.Button(self.right_frame_employee, text="员工信息修改", command=self.modify_item_event, width=20, height=2).pack(side=tk.TOP, pady=30)
+        tk.Button(self.right_frame_employee, text="删除员工", command=remove_employee_event, width=20, height=2).pack(side=tk.TOP, pady=30)
+        tk.Button(self.right_frame_employee, text="员工信息修改", command=modify_employee_event, width=20, height=2).pack(side=tk.TOP, pady=30)
 
 
 
