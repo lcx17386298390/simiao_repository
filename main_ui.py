@@ -309,7 +309,7 @@ class InventoryApp:
         self.inventory_frame.pack(fill=tk.BOTH, expand=True)
 
         # 只需要显示物品名称和库存数量，下标为0和2
-        headers = ['物品名称', '库存数量']
+        headers = ['','物品名称', '库存数量']
         self.kucun = load_kucun()
 
         # 创建一个Canvas来容纳Treeview
@@ -331,9 +331,10 @@ class InventoryApp:
         #     tree.column(header, width=150, anchor='center')  # 数据居中
         for header in headers:
             self.tree_inventory.heading(header, text=header)
-        for row in self.kucun:
+        self.tree_inventory.column(headers[0], width=60, minwidth=60, anchor='center', stretch=tk.NO)
+        for index, row in enumerate(self.kucun, start=0):
             # 只需要显示物品名称和库存数量，下标为0和2
-            self.tree_inventory.insert('', 'end', values=(row[0], row[2]))
+            self.tree_inventory.insert('', 'end', values=(index+1,row[0], row[2]))
         # 设置居中
 
         self.tree_inventory.pack(fill=tk.BOTH, expand=True)
@@ -360,9 +361,11 @@ class InventoryApp:
 
         # 获取行数据
         item_values = self.tree_inventory.item(selected_item, "values")
-        product_name = item_values[0]  # 产品名称
-        product_id = item_values[1]    # 产品ID
-        product_quantity = int(item_values[1])  # 库存数量
+        item_text = self.tree_inventory.item(selected_item, "text")
+        print("双击选中行：", selected_index, item_values, item_text)
+        product_name = item_values[1]  # 产品名称
+        # product_id = self.kucun[selected_index][1]    # 产品ID
+        product_quantity = int(item_values[2])  # 库存数量
 
         # 弹出新窗口
         self.dialog_inventory = tk.Toplevel(self.root)
@@ -492,7 +495,7 @@ class InventoryApp:
 
         # 左侧frame加入view和滑轮
         self.canvas_category = tk.Canvas(self.left_frame_category)
-        columns = {"库存物品名称":190,"备注":190}
+        columns = {"":60, "库存物品名称":190,"备注":190}
         self.tree_category = ttk.Treeview(self.canvas_category, columns=list(columns), show='headings')
         self.scrollbar_category = tk.Scrollbar(self.left_frame_category, orient='vertical')
         for text, width in columns.items():  # 批量设置列属性
@@ -514,8 +517,8 @@ class InventoryApp:
         # 获取库存数据
         self.kucun = load_kucun()
         # 往tree中插入数据,备注只显示部分
-        for row in self.kucun:
-            self.tree_category.insert('', 'end', values=(row[0], row[3][:5]+'...'))
+        for index, row in enumerate(self.kucun, start=1):
+            self.tree_category.insert('', 'end', values=(index, row[0], row[3][:5]+'...'))
 
         # # 往tree中插入数据->测试
         # for i in range(100):
@@ -723,7 +726,7 @@ class InventoryApp:
                 file.write(f"{employee_id}|@| {employee_job_number}|@| {employee_name}|@| {employee_password}\n")# id|@| job_number|@| name|@| password
             # 写入事件日志
             with open(event_log_path, 'a', encoding='utf-8') as file:
-                file.write(f'添加员工|@| {verify_result[0]}|@| {verify_result[1]}|@| 员工: {employee_name}|@| {datetime.datetime.now()}\n')
+                file.write(f'添加用户|@| {verify_result[0]}|@| {verify_result[1]}|@| 新建用户姓名: {employee_name}，工号：{employee_job_number}|@| {datetime.datetime.now()}\n')
             
             # 提示添加成功
             messagebox.showinfo("提示", "添加成功")
@@ -757,12 +760,14 @@ class InventoryApp:
             self.employee.pop(self.selected_employee_job_number)
             # 写入员工文件
             with open(users_path, 'w', encoding='utf-8') as file:
+                # 写入表头
+                file.write("id|@| job_number|@| name|@| password\n")
                 # 重新写入员工文件
                 for job_number, values in self.employee.items():
                     file.write(f"{values['id']}|@| {job_number}|@| {values['name']}|@| {values['password']}\n")
             # 写入事件日志
             with open(event_log_path, 'a', encoding='utf-8') as file:
-                file.write(f'删除员工|@| {verify_result[0]}|@| {verify_result[1]}|@| 员工: {employee_name}|@| {datetime.datetime.now()}\n')
+                file.write(f'删除用户|@| {verify_result[0]}|@| {verify_result[1]}|@| 删除员工姓名: {employee_name}，删除员工工号：{self.selected_employee_job_number}|@| {datetime.datetime.now()}\n')
             # 提示删除成功
             messagebox.showinfo("提示", "删除成功")
             # 刷新页面
@@ -776,26 +781,25 @@ class InventoryApp:
         # 修改员工事件
         def modify_employee_event():
             # 提交修改员工事件
-            def category_modify_commit_employee_event(self, item_name_entry, comment_text): 
+            def category_modify_commit_employee_event(item_name_entry, comment_text, verify_result): 
                 # 原来员工信息
-                employee_name, employee_password = self.employee[self.selected_employee_job_number]
+                employee_id, employee_name, employee_password = self.employee[self.selected_employee_job_number]['id'], self.employee[self.selected_employee_job_number]['name'], self.employee[self.selected_employee_job_number]['password']
                 print('修改员工:', employee_name, employee_password)
 
                 # 修改员工信息
-                self.employee[self.selected_employee_job_number] = [item_name_entry, comment_text]
+                self.employee[self.selected_employee_job_number]['name'] = item_name_entry
+                self.employee[self.selected_employee_job_number]['password'] = comment_text
 
-                # 写入库存文件
-                with open(kucun_path, 'w', encoding='utf-8') as file:
-                    file.write("name|@| id|@| num|@| command\n")
-                    for row in self.kucun:
-                        # file.write(f"{row[0]}|@|{row[1]}|@|{row[2]}\n")
-                        w_str = ""+row[0]
-                        for i in range(1,len(row)):
-                            w_str += "|@|"+row[i]
-                        file.write(w_str+"\n")
+                # 写入用户文件
+                with open(users_path, 'w', encoding='utf-8') as file:
+                    # 写入表头
+                    file.write("id|@| job_number|@| name|@| password\n")
+                    # 重新写入员工文件
+                    for job_number, values in self.employee.items():
+                        file.write(f"{values['id']}|@| {job_number}|@| {values['name']}|@| {values['password']}\n")
                 # 写入事件日志
                 with open(event_log_path, 'a', encoding='utf-8') as file:
-                    file.write(f'修改员工|@| {verify_result[0]}|@| {verify_result[1]}|@| 员工: {employee_name}|@| {datetime.datetime.now()}\n')
+                    file.write(f'修改员工|@| {verify_result[0]}|@| {verify_result[1]}|@| 修改员工姓名: {employee_name}，修改员工工号：{self.selected_employee_job_number}|@| {datetime.datetime.now()}\n')
                 # 提示修改成功
                 messagebox.showinfo("提示", "修改成功")
                 # 刷新页面
@@ -822,13 +826,13 @@ class InventoryApp:
             if not verify_result:
                 return
             # 获取员工信息
-            employee_name, employee_password = self.employee[self.selected_employee_job_number]
+            employee_id, employee_name, employee_password = self.employee[self.selected_employee_job_number]['id'], self.employee[self.selected_employee_job_number]['name'], self.employee[self.selected_employee_job_number]['password']
             print('修改员工:', employee_name, employee_password)
 
             # 弹出修改员工对话框
             self.dialog_modify_employee = tk.Toplevel(self.employee_frame)
             self.dialog_modify_employee.title("修改员工")
-            self.dialog_modify_employee.geometry("300x150")
+            # self.dialog_modify_employee.geometry("300x150")
             # 配置对话框的列宽权重，让列可以扩展
             self.dialog_modify_employee.grid_columnconfigure(0, weight=1)
             self.dialog_modify_employee.grid_columnconfigure(1, weight=1)
@@ -839,11 +843,11 @@ class InventoryApp:
             # 禁止操作主界面
             self.root.attributes("-disabled", True)
             # 在屏幕中央显示
-            x = (self.screen_width - 420) // 2
-            y = (self.screen_height - 250) // 2
-            self.dialog_modify_employee.geometry(f"420x250+{x}+{y}")
+            x = (self.screen_width - 300) // 2
+            y = (self.screen_height - 150) // 2
+            self.dialog_modify_employee.geometry(f"300x150+{x}+{y}")
             # 物品名称
-            tk.Label(self.dialog_modify_employee, text="员工名称:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+            tk.Label(self.dialog_modify_employee, text="员工姓名:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
             user_name_entry = tk.Entry(self.dialog_modify_employee)
             user_name_entry.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
             user_name_entry.config(width=10)
@@ -851,8 +855,8 @@ class InventoryApp:
 
             # 第二行添加密码
             tk.Label(self.dialog_modify_employee, text="员工密码:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
-            user_pw_entry = tk.Entry(self.dialog_modify_employee)
-            user_pw_entry.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
+            user_pw_entry = tk.Entry(self.dialog_modify_employee, show='*')
+            user_pw_entry.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
             user_pw_entry.config(width=10)
             user_pw_entry.insert(0, employee_password)
 
@@ -860,7 +864,7 @@ class InventoryApp:
             tk.Label(self.dialog_modify_employee, text="").grid(row=2, column=0, columnspan=2)
 
             # 添加按钮
-            tk.Button(self.dialog_modify_employee, text="修改", height=2, width=5, command=lambda: category_modify_commit_employee_event(self, user_name_entry.get(), user_pw_entry.get())).grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+            tk.Button(self.dialog_modify_employee, text="修改", height=2, width=5, command=lambda: category_modify_commit_employee_event(user_name_entry.get(), user_pw_entry.get(), verify_result)).grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
 
         tk.Label(self.main_frame, text="员工列表页面").pack()
         # # 添加员工列表的具体实现
@@ -885,7 +889,7 @@ class InventoryApp:
 
         # 左侧frame加入view和滑轮
         self.canvas_employee = tk.Canvas(self.left_frame_employee)
-        columns = {"员工工号":190,"员工姓名":190}
+        columns = {"":60, "员工工号":190,"员工姓名":190}
         # 隐藏第一列（“员工工号”）  
         self.tree_employee = ttk.Treeview(self.canvas_employee, columns=list(columns), show='headings')
         self.tree_employee.column("员工工号", width=0, stretch=tk.NO)  
@@ -908,9 +912,9 @@ class InventoryApp:
 
         # 获取库存数据
         self.employee = load_users()    # 是一个字典
-        for job_number,value in self.employee.items():
+        for index, (job_number,value) in enumerate(self.employee.items(), start=1):
             # self.tree_employee.insert('', 'end', values=(job_number, value['name']))
-            self.tree_employee.insert('', 'end',text=value['id'], values=(job_number, value['name']))
+            self.tree_employee.insert('', 'end',text=value['id'], values=(index, job_number, value['name']))
 
         # # 往tree中插入数据,备注只显示部分
         # for row in self.employee:
