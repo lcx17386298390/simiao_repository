@@ -14,6 +14,7 @@ users_path = 'files/users.txt'
 items_folder_path = 'files/items/'
 user_index_temp_path = 'files/user_index_temp.txt'
 
+
 # 生成唯一ID
 def generate_id(prefix='ID'):
     return f'{prefix}_{int(time.time())}{random.randint(1000, 9999)}'
@@ -39,6 +40,17 @@ def load_kucun():
             name, id, num, comment = line.strip().split('|@|')
             kucun.append([name, id, num, comment])
     return kucun
+
+# 获取物品的所有出库入库记录
+def get_current_item(item_id):
+    item_path = items_folder_path + f"{item_id}.txt"
+    current_item_record = []
+    with open(item_path, 'r', encoding='utf-8') as file:
+        lines = file.readlines()
+        for line in lines[1:]:
+            record = line.strip().split('|@| ')
+            current_item_record.append(record)
+    return current_item_record
 
 # 得到用户下标标记
 def get_user_index_temp():
@@ -930,8 +942,166 @@ class InventoryApp:
 
     # 创建库存统计页面
     def create_inventory_report(self):
-        tk.Label(self.main_frame, text="库存统计页面").pack()
+        # 下拉框选中事件
+        def on_select(event):
+            # 取消全选状态，光标移到文本末尾
+            self.combobox.selection_clear()
+            # self.combobox.icursor(tk.END)  # 将光标移动到文本框末尾
+        
+        # 获取选中物品的出库入库记录,四种情况：今日，本周，本月，全部
+        def get_current_item_data(item_id, type='today'):
+            # 获取时间范围
+            def get_time_range(period):
+                now = datetime.datetime.now()
+                
+                if period == "today":
+                    start = datetime.datetime(now.year, now.month, now.day, 0, 0, 0)
+                    end = start + datetime.timedelta(days=1)
+                elif period == "week":
+                    start = now - datetime.timedelta(days=now.weekday())
+                    start = datetime.datetime(start.year, start.month, start.day, 0, 0, 0)
+                    end = start + datetime.timedelta(days=7)
+                elif period == "month":
+                    start = datetime.datetime(now.year, now.month, 1, 0, 0, 0)
+                    if now.month == 12:
+                        end = datetime.datetime(now.year + 1, 1, 1, 0, 0, 0)
+                    else:
+                        end = datetime.datetime(now.year, now.month + 1, 1, 0, 0, 0)
+                else:
+                    raise ValueError("时间段无效")
+                
+                print('时间范围:', start, end)
+                return start, end
+
+            # 筛选数据
+            def filter_records(records, period):
+                start, end = get_time_range(period)
+                return [record for record in records if start <= record[5] < end]  # 修改为按列表索引筛选
+
+            current_item_all = get_current_item(item_id)
+            # print('当前物品所有记录:', current_item_all)
+
+            records = current_item_all
+            for record in records:
+                record[5] = datetime.datetime.strptime(record[5], "%Y-%m-%d %H:%M:%S.%f")  # 转为datetime
+
+            # 返回筛选后的记录
+            if type in ['today', 'week', 'month']:
+                return filter_records(records, type)
+            else:
+                return records  # 全部返回
+                
+        # 获取起始日期的库存统计,进货，销售
+        def get_start_date_info(start,end,records):
+            
+            
+
+
+        # tk.Label(self.main_frame, text="库存统计页面").pack()
+        # 选中物品的id
+        self.selected_report_item = None
         # 添加库存统计的具体实现
+        # 上下两个frame
+        self.top_frame_report = tk.Frame(self.main_frame, height=40)
+        self.top_frame_report.pack(fill=tk.X, expand=False)
+        # # 设置测试背景颜色
+        self.top_frame_report.config(bg='red')
+        self.bottom_frame_report = tk.Frame(self.main_frame)
+        self.bottom_frame_report.pack(fill=tk.BOTH, expand=True)
+        # # # 设置测试背景颜色
+        # self.bottom_frame_report.config(bg='blue')
+
+        # 上侧frame加入标签按钮,按钮宽95，高30
+        tk.Label(self.top_frame_report, text="当前物品：", font=("Arial", 12, "bold")).pack(side=tk.LEFT, padx=20)
+        # 添加下拉框
+        # 获取库存数据
+        self.kucun = load_kucun()
+        # 获取物品名称
+        item_names = [item[0] for item in self.kucun]
+        # 默认选中第一个
+        self.selected_item = tk.StringVar()
+        self.selected_item.set(item_names[0])
+        self.selected_report_item = self.kucun[0][1]
+        print('当前选中物品id:', self.selected_report_item)
+
+        # 创建下拉框
+        self.combobox = ttk.Combobox(self.top_frame_report, font=("Arial", 12, "bold"), textvariable=self.selected_item, width=15, state='readonly')
+        self.combobox['values'] = item_names
+        self.combobox.pack(side=tk.LEFT, padx=10)
+        # 绑定选中事件
+        self.combobox.bind("<<ComboboxSelected>>", on_select)
+
+        # 添加三个按钮，今日，本周，本月
+        tk.Button(self.top_frame_report, text="本月", font=("Arial", 12, "bold"),width=8, height=1).pack(side=tk.RIGHT, padx=10)
+        tk.Button(self.top_frame_report, text="本周", font=("Arial", 12, "bold"),width=8, height=1).pack(side=tk.RIGHT, padx=10)
+        tk.Button(self.top_frame_report, text="今日", font=("Arial", 12, "bold"),width=8, height=1).pack(side=tk.RIGHT, padx=10)
+        
+        # 在上方添加frame
+        self.top_frame_report_report = tk.Frame(self.bottom_frame_report, height=35)
+        self.top_frame_report_report.pack(side=tk.TOP, fill=tk.X, expand=False)
+        # # 设置测试背景颜色
+        self.top_frame_report_report.config(bg='black')
+        # 下侧frame加入左右两个frame
+        self.left_frame_report = tk.Frame(self.bottom_frame_report, width=500)
+        self.left_frame_report.pack(side=tk.LEFT, padx=(20,0), fill=tk.Y)
+        # # 设置测试背景颜色
+        self.left_frame_report.config(bg='yellow')
+        self.right_frame_report = tk.Frame(self.bottom_frame_report)
+        self.right_frame_report.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        # # 设置测试背景颜色
+        self.right_frame_report.config(bg='green')
+
+        # 添加顶部frame的标签
+        self.top_time_label = tk.Label(self.top_frame_report_report, text="当前时间范围：xxxxxxxxxx", font=("Arial", 12, "bold"))
+        self.top_time_label.pack(side=tk.LEFT, padx=120)
+
+        # 左侧frame加入view和滑轮
+        self.canvas_report = tk.Canvas(self.left_frame_report)
+        columns = {"类型":100, "数量":100,"余量":100,"时间":200}
+        self.tree_report = ttk.Treeview(self.canvas_report, columns=list(columns), show='headings')
+        self.scrollbar_report = tk.Scrollbar(self.left_frame_report, orient='vertical')
+        for text, width in columns.items():
+            self.tree_report.heading(text, text=text, anchor='center')
+            self.tree_report.column(text, anchor='center', width=width, stretch=True)  # stretch 不自动拉伸
+        self.tree_report.pack(fill=tk.BOTH, expand=True)
+        self.canvas_report.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.scrollbar_report.pack(side=tk.RIGHT, fill='y')
+        self.scrollbar_report.configure(command=self.tree_report.yview)
+        self.tree_report.configure(yscrollcommand=self.scrollbar_report.set)
+
+        # 默认为第一个物品的当天数据
+        # 获取当天的库存数据
+        current_item_data = get_current_item_data(self.selected_report_item, 'week')
+        print('当前物品当天数据:', current_item_data)
+        if current_item_data:
+            for row in current_item_data:
+                if row[0] == 'add':
+                    set_type = '进货'
+                else:
+                    set_type = '销售'
+                self.tree_report.insert('', 'end', values=(set_type, row[1], row[2], row[5].strftime("%Y-%m-%d %H:%M:%S")))
+        else:
+            self.tree_report.insert('', 'end', values=('无数据', '无数据', '无数据', '无数据'))
+        # 设置标签文字
+        self.top_time_label.config(text=f"当前时间范围：{datetime.datetime.now().strftime('%Y-%m-%d')}")
+
+        # 右侧frame加入三个frame，分别是库存统计，进货统计，销售统计
+        self.top_frame_right_report = tk.Frame(self.right_frame_report, height=100)
+        self.top_frame_right_report.pack(side=tk.TOP, fill=tk.X, expand=1)
+        
+        self.middle_frame_right_report = tk.Frame(self.right_frame_report, height=100)
+        self.middle_frame_right_report.pack(side=tk.TOP, fill=tk.X, expand=1)
+
+        self.bottom_frame_right_report = tk.Frame(self.right_frame_report, height=100)
+        self.bottom_frame_right_report.pack(side=tk.TOP, fill=tk.X, expand=1)
+
+        # 添加三个标签按钮
+        self.top_frame_right_report_label = tk.Label(self.top_frame_right_report, text="库存统计", font=("Arial", 12, "bold")).pack(side=tk.LEFT, padx=20)
+        self.middle_frame_right_report_label = tk.Label(self.middle_frame_right_report, text="进货统计", font=("Arial", 12, "bold")).pack(side=tk.LEFT, padx=20)
+        self.bottom_frame_right_report_label = tk.Label(self.bottom_frame_right_report, text="销售统计", font=("Arial", 12, "bold")).pack(side=tk.LEFT, padx=20)
+
+        
+
     
     # 添加物品事件
     def add_item_event(self):
