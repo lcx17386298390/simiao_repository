@@ -277,6 +277,7 @@ class VerifyDialog(simpledialog.Dialog):
         self.user_id_entry.grid(row=0, column=1)
         self.password_entry.grid(row=1, column=1)
 
+
         # # 测试添加默认值
         # self.user_id_entry.insert(0, "root")
         # self.password_entry.insert(0, "1234")
