@@ -5,6 +5,8 @@ import datetime
 from tkinter import ttk
 import time
 import random
+import base64
+import shutil
 
 # txt文件路径
 kucun_path = 'files/kucun.txt'
@@ -13,7 +15,52 @@ modify_inventory_log_path = 'files/modify_inventory_log.txt'
 users_path = 'files/users.txt'
 items_folder_path = 'files/items/'
 user_index_temp_path = 'files/user_index_temp.txt'
+icon_path = 'files/icon.ico'
 
+    
+# 示例：在每次写入之前进行备份
+def write_with_backup(file_path, backup=True):
+    # 进行备份操作
+    if backup and os.path.exists(file_path):
+        # 获取当前日期时间，避免覆盖备份文件
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = file_path.replace('.txt', f'_backup.txt')
+        # 修改备份文件路径
+        backup_path = backup_path.replace('files', 'backup_files')
+        # 去除空格
+        backup_path = backup_path.replace(' ', '')
+        
+        # 如果备份文件夹不存在，创建文件夹
+        backup_dir = os.path.dirname(backup_path)  # 获取文件所在的目录
+        if not os.path.exists(backup_dir):
+            os.mkdir(backup_dir)
+        # 创建备份文件
+        shutil.copy(file_path, backup_path)
+        print(f"备份文件已保存：{backup_path}")
+
+
+# 加密/解密
+key = "secret_key"  # 密钥
+# 加密
+def xor_encrypt_decrypt_line(line, key=key):
+    # 使用 XOR 对每个字符进行加密/解密
+    encrypted_chars = [chr(ord(char) ^ ord(key[i % len(key)])) for i, char in enumerate(line)]
+    # 将加密后的字符列表合并成一个字符串
+    encrypted_line = ''.join(encrypted_chars)
+    # 对加密后的字符串进行 Base64 编码，保证输出的字符都可以打印
+    encoded_line = base64.b64encode(encrypted_line.encode('utf-8')).decode('utf-8')
+    return encoded_line
+
+# 解密
+# 解密时先进行 Base64 解码，然后再 XOR 操作
+def xor_decrypt_line(encrypted_line, key):
+    # 对 Base64 编码的数据进行解码
+    decoded_line = base64.b64decode(encrypted_line.encode('utf-8')).decode('utf-8')
+    # 使用 XOR 进行解密
+    decrypted_chars = [chr(ord(char) ^ ord(key[i % len(key)])) for i, char in enumerate(decoded_line)]
+    # 将解密后的字符列表合并成一个字符串
+    decrypted_line = ''.join(decrypted_chars)
+    return decrypted_line
 
 # 生成唯一ID
 def generate_id(prefix='ID'):
@@ -28,6 +75,7 @@ def load_users():
             lines = file.readlines()
             for line in lines[1:]:
                 id, job_number, name, password = line.strip().split('|@| ')
+                password = xor_decrypt_line(password, key)  # 解密
                 users[job_number] = {'id': id, 'name': name, 'password': password}
     return users
 
@@ -38,19 +86,33 @@ def load_kucun():
         lines = file.readlines()
         for line in lines[1:]:
             name, id, num, comment = line.strip().split('|@|')
-            kucun.append([name, id, num, comment])
+            kucun.append([name, id.replace(' ',''), num, comment])
     return kucun
 
 # 获取物品的所有出库入库记录
 def get_current_item(item_id):
     item_path = items_folder_path + f"{item_id}.txt"
     current_item_record = []
+    # 如果没有文件，创建文件
+    if not os.path.exists(item_path):
+        with open(item_path, 'w', encoding='utf-8') as file:
+            file.write("修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间\n")
     with open(item_path, 'r', encoding='utf-8') as file:
         lines = file.readlines()
         for line in lines[1:]:
             record = line.strip().split('|@| ')
             current_item_record.append(record)
     return current_item_record
+
+# 获取事件日志
+def get_event_log():
+    event_log = []
+    with open(event_log_path, 'r', encoding='utf-8') as file:
+        lines = file.readlines()
+        for line in lines[1:]:
+            event = line.strip().split('|@| ')
+            event_log.append(event)
+    return event_log
 
 # 得到用户下标标记
 def get_user_index_temp():
@@ -62,31 +124,52 @@ def get_user_index_temp():
 
 # 保存用户下标标记
 def save_user_index_temp(index):
+    # 保存前先备份
+    write_with_backup(user_index_temp_path)
     with open(f'{user_index_temp_path}', 'w', encoding='utf-8') as file:
         file.write(f'{index}\n')
 
 
 def verify_user(job_number, password):
     users = load_users()
+
     if job_number in users and users[job_number]['password'].strip() == password:
         return [job_number, users[job_number]['name'].strip()]
     return False
 
-# 库存管理
-# 添加物品操作
-def add_item(item_name, quantity):
-    with open(f'{item_name}.txt', 'a') as file:
-        file.write(f'{datetime.datetime.now()}, +{quantity}\n')
 
-# 删除物品操作
-def remove_item(item_name, quantity):
-    with open(f'{item_name}.txt', 'a') as file:
-        file.write(f'{datetime.datetime.now()}, -{quantity}\n')
+# 验证用户->弹出验证用户信息对话框,成功返回用户信息,失败返回False
+def verify_user_ui(parent, level='root', job_number_level=None):
+    dialog_verify = VerifyDialog(parent,title="验证")
+    print("弹出验证用户信息对话框")
+    user_id, password = dialog_verify.get_credentials()
+    # 有权限工号
+    if level == 'self_or_root' and job_number_level :
+        if job_number_level != user_id and user_id != 'root':
+            messagebox.showerror("错误", "仅本人或管理员用户可以操作")
+            return False
+    elif level == 'root':
+        if user_id != 'root':
+            messagebox.showerror("错误", "仅管理员用户可以操作")
+            return False
+    else:   # all
+        pass
+
+    # 返回信息
+    verify_result = verify_user(user_id, password)
+    if not verify_result:
+        messagebox.showerror("错误", "用户验证失败")
+        return False
+    else:
+        # messagebox.showinfo("成功", "用户验证成功")
+        print("该用户信息：", verify_result)
+        return verify_result
+
 
 # 修改物品操作 -> 通过此操作进行添加数量和减少数量
 def modify_item(myself, item_name, quantity, type='add', index=0, parent=None):
     # 验证操作人员，验证通过才能进行操作
-    verify_result = verify_user_ui(parent)
+    verify_result = verify_user_ui(parent, level='all')
     if not verify_result:
         return False
      
@@ -109,6 +192,11 @@ def modify_item(myself, item_name, quantity, type='add', index=0, parent=None):
         # 修改库存数量
         myself.kucun[index][2] = ' ' + str(int(myself.kucun[index][2]) - int(quantity))
     
+    # 先备份文件
+    write_with_backup(kucun_path)
+    write_with_backup(event_log_path)
+    write_with_backup(modify_inventory_log_path)
+    write_with_backup(f'{items_folder_path}{myself.kucun[index][1]}.txt')
     # 写入文件
     with open(kucun_path, 'w', encoding='utf-8') as file:
         file.write("name|@| id|@| num|@| command\n")
@@ -142,6 +230,7 @@ def modify_item(myself, item_name, quantity, type='add', index=0, parent=None):
         # 修改物品表格文件->id.txt【修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间  】,在items文件夹下
         with open(f'{items_folder_path}{myself.kucun[index][1]}.txt', 'a', encoding='utf-8') as file:
             file.write(f'remove|@| {quantity}|@| {myself.kucun[index][2]}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
+    messagebox.showinfo("成功", "操作成功")
     return True
 
 
@@ -170,22 +259,6 @@ def generate_report(item_name, period='daily'):
     
     return report
 
-# 验证用户->弹出验证用户信息对话框,成功返回用户信息,失败返回False
-def verify_user_ui(parent):
-    dialog_verify = VerifyDialog(parent,title="验证")
-    print("弹出验证用户信息对话框")
-    user_id, password = dialog_verify.get_credentials()
-
-    # 返回信息
-    verify_result = verify_user(user_id, password)
-    if not verify_result:
-        messagebox.showerror("错误", "用户验证失败")
-        return False
-    else:
-        # messagebox.showinfo("成功", "用户验证成功")
-        print("该用户信息：", verify_result)
-        return verify_result
-
 
 # 自定义验证用户信息对话框
 class VerifyDialog(simpledialog.Dialog):
@@ -204,9 +277,9 @@ class VerifyDialog(simpledialog.Dialog):
         self.user_id_entry.grid(row=0, column=1)
         self.password_entry.grid(row=1, column=1)
 
-        # 测试添加默认值
-        self.user_id_entry.insert(0, "root")
-        self.password_entry.insert(0, "1234")
+        # # 测试添加默认值
+        # self.user_id_entry.insert(0, "root")
+        # self.password_entry.insert(0, "1234")
         
         return self.user_id_entry
     
@@ -218,6 +291,12 @@ class VerifyDialog(simpledialog.Dialog):
         if self.user_id and self.password:
             return self.user_id, self.password
         return None, None
+    
+    # 取消按钮事件，关闭窗口
+    def cancel(self, event=None):
+        print("取消按钮")
+        self.parent.focus_set()
+        self.destroy()
 
 # GUI
 class InventoryApp:
@@ -238,6 +317,8 @@ class InventoryApp:
         x = (self.screen_width - 800) // 2
         y = (self.screen_height - 500) // 2
         self.root.geometry(f"800x500+{x}+{y}")
+        # 设置图标
+        self.root.iconbitmap(icon_path)
         
         self.menu_frame = tk.Frame(root)
         self.menu_frame.pack(side=tk.TOP, fill=tk.X)
@@ -246,6 +327,7 @@ class InventoryApp:
         self.main_frame.pack(fill=tk.BOTH, expand=True)
         
         self.buttons = {}
+        self.report_buttons = {}
         self.create_main_menu()
 
         # 库存管理页面
@@ -271,6 +353,9 @@ class InventoryApp:
         # 员工列表
         self.buttons['employee'] = tk.Button(self.menu_frame, text="员工列表", command=self.show_employee_list, font=button_font)
         self.buttons['employee'].pack(side=tk.LEFT)
+        # 事件日志
+        self.buttons['event_log'] = tk.Button(self.menu_frame, text="事件日志", command=self.show_event_log, font=button_font)
+        self.buttons['event_log'].pack(side=tk.LEFT)
     
     # 显示库存管理页面
     def show_inventory_management(self):
@@ -296,12 +381,24 @@ class InventoryApp:
         self.highlight_button('report')
         self.create_inventory_report()
     
+    # 显示事件日志页面
+    def show_event_log(self):
+        self.clear_frame()
+        self.highlight_button('event_log')
+        self.create_event_log()
+    
     def clear_frame(self):
         for widget in self.main_frame.winfo_children():
             widget.destroy()
     
     def highlight_button(self, button_key):
         for key, button in self.buttons.items():
+            if key == button_key:
+                button.config(bg='lightblue')
+            else:
+                button.config(bg='SystemButtonFace')
+    def highlight_report_button(self, button_key):
+        for key, button in self.report_buttons.items():
             if key == button_key:
                 button.config(bg='lightblue')
             else:
@@ -624,7 +721,7 @@ class InventoryApp:
             # self.selected_employee = self.tree_employee.index(row_id)
             # print('单击选中行：', self.selected_employee)
             # self.selected_employee_job_number = self.selected_employee
-            self.selected_employee_job_number = item_data[0]
+            self.selected_employee_job_number = item_data[1]
             
         # 员工页面鼠标双击事件
         def on_click_double_employee(event):
@@ -677,7 +774,7 @@ class InventoryApp:
         
         def add_employee_event():
             # 先弹出验证用户对话框
-            verify_result = verify_user_ui(self.root)
+            verify_result = verify_user_ui(self.root, level='root')
             if not verify_result:
                 return
             
@@ -733,9 +830,15 @@ class InventoryApp:
             employee_job_number = 88000 + user_index_temp + 1
             # 添加员工
             self.employee[employee_job_number] = {'id':employee_id, 'name': employee_name, 'password': employee_password}
+            # 备份文件
+            write_with_backup(users_path)
+            write_with_backup(event_log_path)
+
             # 添加用户
             with open(users_path, 'a', encoding='utf-8') as file:
-                file.write(f"{employee_id}|@| {employee_job_number}|@| {employee_name}|@| {employee_password}\n")# id|@| job_number|@| name|@| password
+                # 加密密码
+                password_secret = xor_encrypt_decrypt_line(employee_password)
+                file.write(f"{employee_id}|@| {employee_job_number}|@| {employee_name}|@| {password_secret}\n")# id|@| job_number|@| name|@| password
             # 写入事件日志
             with open(event_log_path, 'a', encoding='utf-8') as file:
                 file.write(f'添加用户|@| {verify_result[0]}|@| {verify_result[1]}|@| 新建用户姓名: {employee_name}，工号：{employee_job_number}|@| {datetime.datetime.now()}\n')
@@ -762,7 +865,7 @@ class InventoryApp:
                 messagebox.showerror("错误", "请选择员工")
                 return
             # 弹出员工验证对话框
-            verify_result = verify_user_ui(self.root)
+            verify_result = verify_user_ui(self.root, level='root')
             if not verify_result:
                 return
             # 获取员工信息
@@ -770,13 +873,17 @@ class InventoryApp:
             print('删除员工:', employee_name, employee_password)
             # 删除员工
             self.employee.pop(self.selected_employee_job_number)
+            # 备份文件
+            write_with_backup(users_path)
+            write_with_backup(event_log_path)
             # 写入员工文件
             with open(users_path, 'w', encoding='utf-8') as file:
                 # 写入表头
                 file.write("id|@| job_number|@| name|@| password\n")
                 # 重新写入员工文件
                 for job_number, values in self.employee.items():
-                    file.write(f"{values['id']}|@| {job_number}|@| {values['name']}|@| {values['password']}\n")
+                    password_secret = xor_encrypt_decrypt_line(values['password'])
+                    file.write(f"{values['id']}|@| {job_number}|@| {values['name']}|@| {password_secret}\n")
             # 写入事件日志
             with open(event_log_path, 'a', encoding='utf-8') as file:
                 file.write(f'删除用户|@| {verify_result[0]}|@| {verify_result[1]}|@| 删除员工姓名: {employee_name}，删除员工工号：{self.selected_employee_job_number}|@| {datetime.datetime.now()}\n')
@@ -802,13 +909,18 @@ class InventoryApp:
                 self.employee[self.selected_employee_job_number]['name'] = item_name_entry
                 self.employee[self.selected_employee_job_number]['password'] = comment_text
 
+                # 备份文件
+                write_with_backup(users_path)
+                write_with_backup(event_log_path)
                 # 写入用户文件
                 with open(users_path, 'w', encoding='utf-8') as file:
                     # 写入表头
                     file.write("id|@| job_number|@| name|@| password\n")
                     # 重新写入员工文件
                     for job_number, values in self.employee.items():
-                        file.write(f"{values['id']}|@| {job_number}|@| {values['name']}|@| {values['password']}\n")
+                        # 加密密码
+                        password_secret = xor_encrypt_decrypt_line(values['password'])
+                        file.write(f"{values['id']}|@| {job_number}|@| {values['name']}|@| {password_secret}\n")
                 # 写入事件日志
                 with open(event_log_path, 'a', encoding='utf-8') as file:
                     file.write(f'修改员工|@| {verify_result[0]}|@| {verify_result[1]}|@| 修改员工姓名: {employee_name}，修改员工工号：{self.selected_employee_job_number}|@| {datetime.datetime.now()}\n')
@@ -833,8 +945,9 @@ class InventoryApp:
             if self.selected_employee_job_number is None:
                 messagebox.showerror("错误", "请选择员工")
                 return
+            print('选中员工:', self.selected_employee_job_number)
             # 弹出员工验证对话框
-            verify_result = verify_user_ui(self.root)
+            verify_result = verify_user_ui(self.root, level='self_or_root', job_number_level=self.selected_employee_job_number)
             if not verify_result:
                 return
             # 获取员工信息
@@ -946,7 +1059,21 @@ class InventoryApp:
         def on_select(event):
             # 取消全选状态，光标移到文本末尾
             self.combobox.selection_clear()
-            # self.combobox.icursor(tk.END)  # 将光标移动到文本框末尾
+            # 聚焦到主窗口
+            self.root.focus_force()
+            # 获取选中的物品和下标
+            item = event.widget.get()
+            index = event.widget.current()
+            print('选中物品下标:', index)
+            # 获取选中物品的id
+            self.selected_report_item = self.kucun[index]
+            print('选中物品:', self.selected_report_item)
+            # 更新treeview
+            records = get_current_item_data(self.selected_report_item[1], self.selected_report_type)
+            update_treeview(records)
+            # 设置库存量
+            self.top_frame_right_report_label.config(text=f"当前统计：{self.selected_report_item[2]}")
+
         
         # 获取选中物品的出库入库记录,四种情况：今日，本周，本月，全部
         def get_current_item_data(item_id, type='today'):
@@ -970,6 +1097,10 @@ class InventoryApp:
                 else:
                     raise ValueError("时间段无效")
                 
+                # 设置时间标题
+                # 设置标签文字
+                self.top_time_label.config(text=f"当前时间范围：{start.strftime('%Y-%m-%d')} - {end.strftime('%Y-%m-%d')}")
+
                 print('时间范围:', start, end)
                 return start, end
 
@@ -991,21 +1122,60 @@ class InventoryApp:
             else:
                 return records  # 全部返回
                 
-        # 获取起始日期的库存统计,进货，销售
-        def get_start_date_info(start,end,records):
-            
-            
+        # 获取起始日期的进货，销售统计
+        def get_start_date_info(records):
+            # 进货数量
+            add_quantity = 0
+            # 销售数量
+            remove_quantity = 0
+            for record in records:
+                if record[0] == 'add':
+                    add_quantity += int(record[1])
+                else:
+                    remove_quantity += int(record[1])
+            self.middle_frame_right_report_label.config(text=f"进货统计：{add_quantity}")
+            self.bottom_frame_right_report_label.config(text=f"销售统计：{remove_quantity}")
+            return add_quantity, remove_quantity
+
+        # 更新treeview
+        def update_treeview(records):
+            # 获取起始日期的进货，销售统计
+            get_start_date_info(records)
+            # 清空treeview
+            for item in self.tree_report.get_children():
+                self.tree_report.delete(item)
+            if not records:
+                self.tree_report.insert('', 'end', values=('无数据', '无数据', '无数据', '无数据'))
+                return
+            # 插入数据
+            for record in records:
+                if record[0] == 'add':
+                    set_type = '进货'
+                else:
+                    set_type = '销售'
+                self.tree_report.insert('', 'end', values=(set_type, record[1], record[2], record[5].strftime("%Y-%m-%d %H:%M")))
+        # 日期按钮事件
+        def date_button_event(type):
+            # 高亮按钮
+            self.highlight_report_button(type)
+            # 更新选中type
+            self.selected_report_type = type
+            # 获取当前物品的记录
+            records = get_current_item_data(self.selected_report_item[1], type)
+            update_treeview(records)
 
 
         # tk.Label(self.main_frame, text="库存统计页面").pack()
         # 选中物品的id
         self.selected_report_item = None
+        # 选中的type
+        self.selected_report_type = 'today'
         # 添加库存统计的具体实现
         # 上下两个frame
         self.top_frame_report = tk.Frame(self.main_frame, height=40)
         self.top_frame_report.pack(fill=tk.X, expand=False)
-        # # 设置测试背景颜色
-        self.top_frame_report.config(bg='red')
+        # # # 设置测试背景颜色
+        # self.top_frame_report.config(bg='red')
         self.bottom_frame_report = tk.Frame(self.main_frame)
         self.bottom_frame_report.pack(fill=tk.BOTH, expand=True)
         # # # 设置测试背景颜色
@@ -1021,8 +1191,8 @@ class InventoryApp:
         # 默认选中第一个
         self.selected_item = tk.StringVar()
         self.selected_item.set(item_names[0])
-        self.selected_report_item = self.kucun[0][1]
-        print('当前选中物品id:', self.selected_report_item)
+        self.selected_report_item = self.kucun[0]
+        print('当前选中物品:', self.selected_report_item)
 
         # 创建下拉框
         self.combobox = ttk.Combobox(self.top_frame_report, font=("Arial", 12, "bold"), textvariable=self.selected_item, width=15, state='readonly')
@@ -1032,24 +1202,27 @@ class InventoryApp:
         self.combobox.bind("<<ComboboxSelected>>", on_select)
 
         # 添加三个按钮，今日，本周，本月
-        tk.Button(self.top_frame_report, text="本月", font=("Arial", 12, "bold"),width=8, height=1).pack(side=tk.RIGHT, padx=10)
-        tk.Button(self.top_frame_report, text="本周", font=("Arial", 12, "bold"),width=8, height=1).pack(side=tk.RIGHT, padx=10)
-        tk.Button(self.top_frame_report, text="今日", font=("Arial", 12, "bold"),width=8, height=1).pack(side=tk.RIGHT, padx=10)
-        
+        self.report_buttons['month'] = tk.Button(self.top_frame_report, text="本月", command=lambda: date_button_event('month'), font=("Arial", 12, "bold"),width=8, height=1)
+        self.report_buttons['month'].pack(side=tk.RIGHT, padx=10)
+        self.report_buttons['week'] = tk.Button(self.top_frame_report, text="本周", command=lambda: date_button_event('week'), font=("Arial", 12, "bold"),width=8, height=1)
+        self.report_buttons['week'].pack(side=tk.RIGHT, padx=10)
+        self.report_buttons['today'] = tk.Button(self.top_frame_report, text="今日", command=lambda: date_button_event('today'), font=("Arial", 12, "bold"),width=8, height=1)
+        self.report_buttons['today'].pack(side=tk.RIGHT, padx=10)
+        self.highlight_report_button('today')
         # 在上方添加frame
         self.top_frame_report_report = tk.Frame(self.bottom_frame_report, height=35)
         self.top_frame_report_report.pack(side=tk.TOP, fill=tk.X, expand=False)
-        # # 设置测试背景颜色
-        self.top_frame_report_report.config(bg='black')
+        # # # 设置测试背景颜色
+        # self.top_frame_report_report.config(bg='black')
         # 下侧frame加入左右两个frame
         self.left_frame_report = tk.Frame(self.bottom_frame_report, width=500)
         self.left_frame_report.pack(side=tk.LEFT, padx=(20,0), fill=tk.Y)
-        # # 设置测试背景颜色
-        self.left_frame_report.config(bg='yellow')
+        # # # 设置测试背景颜色
+        # self.left_frame_report.config(bg='yellow')
         self.right_frame_report = tk.Frame(self.bottom_frame_report)
         self.right_frame_report.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-        # # 设置测试背景颜色
-        self.right_frame_report.config(bg='green')
+        # # # 设置测试背景颜色
+        # self.right_frame_report.config(bg='green')
 
         # 添加顶部frame的标签
         self.top_time_label = tk.Label(self.top_frame_report_report, text="当前时间范围：xxxxxxxxxx", font=("Arial", 12, "bold"))
@@ -1069,22 +1242,6 @@ class InventoryApp:
         self.scrollbar_report.configure(command=self.tree_report.yview)
         self.tree_report.configure(yscrollcommand=self.scrollbar_report.set)
 
-        # 默认为第一个物品的当天数据
-        # 获取当天的库存数据
-        current_item_data = get_current_item_data(self.selected_report_item, 'week')
-        print('当前物品当天数据:', current_item_data)
-        if current_item_data:
-            for row in current_item_data:
-                if row[0] == 'add':
-                    set_type = '进货'
-                else:
-                    set_type = '销售'
-                self.tree_report.insert('', 'end', values=(set_type, row[1], row[2], row[5].strftime("%Y-%m-%d %H:%M:%S")))
-        else:
-            self.tree_report.insert('', 'end', values=('无数据', '无数据', '无数据', '无数据'))
-        # 设置标签文字
-        self.top_time_label.config(text=f"当前时间范围：{datetime.datetime.now().strftime('%Y-%m-%d')}")
-
         # 右侧frame加入三个frame，分别是库存统计，进货统计，销售统计
         self.top_frame_right_report = tk.Frame(self.right_frame_report, height=100)
         self.top_frame_right_report.pack(side=tk.TOP, fill=tk.X, expand=1)
@@ -1096,15 +1253,109 @@ class InventoryApp:
         self.bottom_frame_right_report.pack(side=tk.TOP, fill=tk.X, expand=1)
 
         # 添加三个标签按钮
-        self.top_frame_right_report_label = tk.Label(self.top_frame_right_report, text="库存统计", font=("Arial", 12, "bold")).pack(side=tk.LEFT, padx=20)
-        self.middle_frame_right_report_label = tk.Label(self.middle_frame_right_report, text="进货统计", font=("Arial", 12, "bold")).pack(side=tk.LEFT, padx=20)
-        self.bottom_frame_right_report_label = tk.Label(self.bottom_frame_right_report, text="销售统计", font=("Arial", 12, "bold")).pack(side=tk.LEFT, padx=20)
+        self.top_frame_right_report_label = tk.Label(self.top_frame_right_report, text=f"当前库存: {self.selected_report_item[2]}", font=("Arial", 12, "bold"))
+        self.top_frame_right_report_label.pack(side=tk.LEFT, padx=20)
+        self.middle_frame_right_report_label = tk.Label(self.middle_frame_right_report, text="进货统计", font=("Arial", 12, "bold"))
+        self.middle_frame_right_report_label.pack(side=tk.LEFT, padx=20)
+        self.bottom_frame_right_report_label = tk.Label(self.bottom_frame_right_report, text="销售统计", font=("Arial", 12, "bold"))
+        self.bottom_frame_right_report_label.pack(side=tk.LEFT, padx=20)
+
+
+        # 默认为第一个物品的当天数据
+        # 获取当天的库存数据
+        current_item_data = get_current_item_data(self.selected_report_item[1], 'today')
+        print('当前物品当天数据:', current_item_data)
+        # 更新treeview
+        update_treeview(current_item_data)
+
+
+    
+    # 创建事件日志页面
+    def create_event_log(self):
+        # 日志页面鼠标双击事件
+        def on_click_double_event(event):
+            # 获取鼠标指针所在行的ID
+            row_id = self.tree_event.identify_row(event.y)
+            # 获取行数据
+            log_data = self.tree_event.item(row_id, "values")
+            log_data = self.event_log[self.tree_event.index(row_id)]
+
+            # 可能选中的是空白处
+            if not log_data:
+                print('双击选中空白处')
+                return
+            
+            # 弹出新窗口，显示详细信息
+            self.dialog_log = tk.Toplevel(self.root)
+            self.dialog_log.title("物品详细信息")
+            self.dialog_log.geometry("300x150")
+            # 不可改变大小
+            self.dialog_log.resizable(False, False)
+            # 禁止操作主界面
+            self.root.attributes("-disabled", True)
+            # 在屏幕中央显示
+            x = (self.screen_width - 300) // 2
+            y = (self.screen_height - 150) // 2
+            self.dialog_log.geometry(f"300x150+{x}+{y}")
+            # 设置关闭事件
+            self.dialog_log.protocol("WM_DELETE_WINDOW", on_closing_dialog_log)
+            # 聚焦到弹窗
+            self.dialog_log.focus_force()
+            # 操作内容
+            tk.Label(self.dialog_log, text="操作内容:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+            text_log = tk.Text(self.dialog_log, width=27, height=9)
+            text_log.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
+            # 添加滑轮
+            # scrollbar_log = tk.Scrollbar(self.dialog_log)
+            # scrollbar_log.grid(row=0, column=2, sticky='ns')
+            # scrollbar_log.config(command=text_log.yview)
+            # text_log.config(yscrollcommand=scrollbar_log.set)
+            text_log.insert('end', log_data[3])
+            text_log.config(state='disabled')
+        
+        # 关闭弹窗
+        def on_closing_dialog_log():
+            print("关闭弹窗")
+            self.root.attributes("-disabled", False)
+            # 聚焦到主窗口
+            self.root.focus_force()
+            self.dialog_log.destroy()
+
+
+
+        # 添加treeview和滑轮
+        self.canvas_event = tk.Canvas(self.main_frame)
+        # 事件描述|@| 操作员工id|@| 操作员工|@| 操作内容内容|@| 操作时间
+        columns = {"":60 ,"事件描述":150, "操作员工id":100, "操作员工":100, "操作内容":200, "操作时间":170}
+        self.tree_event = ttk.Treeview(self.canvas_event, columns=list(columns), show='headings')
+        self.scrollbar_event = tk.Scrollbar(self.main_frame, orient='vertical')
+        for text, width in columns.items():
+            self.tree_event.heading(text, text=text, anchor='center')
+            self.tree_event.column(text, anchor='center', width=width, stretch=True)
+        self.tree_event.pack(fill=tk.BOTH, expand=True)
+        self.canvas_event.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.scrollbar_event.pack(side=tk.RIGHT, fill='y')
+        self.scrollbar_event.configure(command=self.tree_event.yview)
+        self.tree_event.configure(yscrollcommand=self.scrollbar_event.set)
+        # 获取事件日志数据
+        self.event_log = get_event_log()
+        # 插入数据
+        for index, record in enumerate(self.event_log, start=1):
+            try:
+                time = datetime.datetime.strptime(record[4], "%Y-%m-%d %H:%M:%S.%f")  # 转为datetime
+            except:
+                time = datetime.datetime.strptime(record[4], "%Y-%m-%d %H:%M:%S")  # 转为datetime
+            self.tree_event.insert('', 'end', values=(index, record[0], record[1], record[2], record[3][:14]+'...', time.strftime("%Y-%m-%d %H:%M")))
+        # 绑定双击事件
+        self.tree_event.bind('<Double-1>', on_click_double_event)
 
         
 
     
     # 添加物品事件
     def add_item_event(self):
+        # 双击事件
+
         # 弹出添加物品对话框
         self.dialog_add_item_category = tk.Toplevel(self.category_frame)
         self.dialog_add_item_category.title("添加物品")
@@ -1174,6 +1425,11 @@ class InventoryApp:
         # 生成 
         # 去掉备注中的换行符
         comment_text = comment_text.replace('\n', '  ')
+        # 备份文件
+        write_with_backup(kucun_path)
+        write_with_backup(modify_inventory_log_path)
+        write_with_backup(event_log_path)
+        write_with_backup(f'{items_folder_path}{id}.txt')
         # 写入库存文件
         with open(kucun_path, 'a', encoding='utf-8') as file:
             file.write(f"{item_name}|@|{id}|@|{item_quantity}|@|{comment_text}\n")
@@ -1222,6 +1478,10 @@ class InventoryApp:
         self.kucun = load_kucun()
         # 删除物品
         self.kucun.pop(self.selected_item_index)
+        # 备份文件
+        write_with_backup(kucun_path)
+        write_with_backup(modify_inventory_log_path)
+        write_with_backup(event_log_path)
         # 写入文件
         with open(kucun_path, 'w', encoding='utf-8') as file:
             file.write("name|@| id|@| num|@| command\n")
@@ -1258,6 +1518,9 @@ class InventoryApp:
             # 修改物品信息
             self.kucun[self.selected_item_index] = [item_name_entry, item_id, item_quantity, comment_text]
 
+            # 备份文件
+            write_with_backup(kucun_path)
+            write_with_backup(event_log_path)
             # 写入库存文件
             with open(kucun_path, 'w', encoding='utf-8') as file:
                 file.write("name|@| id|@| num|@| command\n")
