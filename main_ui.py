@@ -70,24 +70,31 @@ def generate_id(prefix='ID'):
 # 读取用户文件
 def load_users():
     users = {}
-    if os.path.exists(f'{users_path}'):
+    try:
         with open(f'{users_path}', 'r', encoding='utf-8') as file:
             lines = file.readlines()
             for line in lines[1:]:
                 id, job_number, name, password = line.strip().split('|@| ')
                 password = xor_decrypt_line(password, key)  # 解密
                 users[job_number] = {'id': id, 'name': name, 'password': password}
-    return users
+    except Exception as e:
+        messagebox.showerror("错误", f"读取用户文件失败,存储格式错误：{e}")
+    finally:
+        return users
 
 # 读取库存文件
 def load_kucun():
     kucun = []
-    with open(kucun_path, 'r', encoding='utf-8') as file:
-        lines = file.readlines()
-        for line in lines[1:]:
-            name, id, num, comment = line.strip().split('|@|')
-            kucun.append([name, id.replace(' ',''), num, comment])
-    return kucun
+    try:
+        with open(kucun_path, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+            for line in lines[1:]:
+                name, id, num, comment = line.strip().split('|@|')
+                kucun.append([name, id.replace(' ',''), num, comment])
+    except Exception as e:
+        messagebox.showerror("错误", f"读取库存文件失败,存储格式错误：{e}")
+    finally:
+        return kucun
 
 # 获取物品的所有出库入库记录
 def get_current_item(item_id):
@@ -97,22 +104,30 @@ def get_current_item(item_id):
     if not os.path.exists(item_path):
         with open(item_path, 'w', encoding='utf-8') as file:
             file.write("修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间\n")
-    with open(item_path, 'r', encoding='utf-8') as file:
-        lines = file.readlines()
-        for line in lines[1:]:
-            record = line.strip().split('|@| ')
-            current_item_record.append(record)
-    return current_item_record
+    try:
+        with open(item_path, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+            for line in lines[1:]:
+                record = line.strip().split('|@| ')
+                current_item_record.append(record)
+    except Exception as e:
+        messagebox.showerror("错误", f"读取物品文件失败,存储格式错误：{e}")
+    finally:
+        return current_item_record
 
 # 获取事件日志
 def get_event_log():
     event_log = []
-    with open(event_log_path, 'r', encoding='utf-8') as file:
-        lines = file.readlines()
-        for line in lines[1:]:
-            event = line.strip().split('|@| ')
-            event_log.append(event)
-    return event_log
+    try:
+        with open(event_log_path, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+            for line in lines[1:]:
+                event = line.strip().split('|@| ')
+                event_log.append(event)
+    except Exception as e:
+        messagebox.showerror("错误", f"读取事件日志文件失败,存储格式错误：{e}")
+    finally:
+        return event_log
 
 # 得到用户下标标记
 def get_user_index_temp():
@@ -276,7 +291,6 @@ class VerifyDialog(simpledialog.Dialog):
         
         self.user_id_entry.grid(row=0, column=1)
         self.password_entry.grid(row=1, column=1)
-
 
         # # 测试添加默认值
         # self.user_id_entry.insert(0, "root")
@@ -1150,7 +1164,7 @@ class InventoryApp:
                 return
             # 插入数据
             for record in records:
-                if record[0] == 'add':
+                if record[0] == 'add' or record[0] == 'create':
                     set_type = '进货'
                 else:
                     set_type = '销售'
@@ -1340,6 +1354,8 @@ class InventoryApp:
         self.tree_event.configure(yscrollcommand=self.scrollbar_event.set)
         # 获取事件日志数据
         self.event_log = get_event_log()
+        # 倒转列表
+        self.event_log.reverse()
         # 插入数据
         for index, record in enumerate(self.event_log, start=1):
             try:
