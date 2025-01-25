@@ -1,5 +1,5 @@
 id|@| job_number|@| name|@| password
-user_root|@| root|@| 陈|@| QldQRg==
+user_root|@| root|@| 管理员|@| QldQRg==
 user_000000001|@| 001|@| 张三|@| AwQQARIbLQ9US0A=
 user_000000002|@| 002|@| 李四|@| QldQRlBCaFM=
 user_000000003|@| 003|@| 王五|@| EgcAQ1dH

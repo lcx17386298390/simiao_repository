@@ -89,8 +89,8 @@ def load_kucun():
         with open(kucun_path, 'r', encoding='utf-8') as file:
             lines = file.readlines()
             for line in lines[1:]:
-                name, id, num, comment = line.strip().split('|@|')
-                kucun.append([name, id.replace(' ',''), num, comment])
+                name, id, price, num, comment = line.strip().split('|@|')
+                kucun.append([name, id.replace(' ',''), price, num, comment])
     except Exception as e:
         messagebox.showerror("错误", f"读取库存文件失败,存储格式错误：{e}")
     finally:
@@ -155,6 +155,8 @@ def verify_user(job_number, password):
 
 # 验证用户->弹出验证用户信息对话框,成功返回用户信息,失败返回False
 def verify_user_ui(parent, level='root', job_number_level=None):
+    ########## 测试代码 ##########
+    return ['root', '管理员']
     dialog_verify = VerifyDialog(parent,title="验证")
     print("弹出验证用户信息对话框")
     user_id, password = dialog_verify.get_credentials()
@@ -202,10 +204,10 @@ def modify_item(myself, item_name, quantity, type='add', index=0, parent=None):
     # 判断逻辑
     if type == 'add':
         # 修改库存数量
-        myself.kucun[index][2] = ' ' + str(int(myself.kucun[index][2]) + int(quantity))
+        myself.kucun[index][3] = ' ' + str(int(myself.kucun[index][3]) + int(quantity))
     elif type == 'remove':
         # 修改库存数量
-        myself.kucun[index][2] = ' ' + str(int(myself.kucun[index][2]) - int(quantity))
+        myself.kucun[index][3] = ' ' + str(int(myself.kucun[index][3]) - int(quantity))
     
     # 先备份文件
     write_with_backup(kucun_path)
@@ -214,7 +216,7 @@ def modify_item(myself, item_name, quantity, type='add', index=0, parent=None):
     write_with_backup(f'{items_folder_path}{myself.kucun[index][1]}.txt')
     # 写入文件
     with open(kucun_path, 'w', encoding='utf-8') as file:
-        file.write("name|@| id|@| num|@| command\n")
+        file.write("name|@| id|@| price|@| num|@| command\n")
         for row in myself.kucun:
             # file.write(f"{row[0]}|@|{row[1]}|@|{row[2]}\n")
             w_str = ""+row[0]
@@ -433,7 +435,7 @@ class InventoryApp:
         self.inventory_frame.pack(fill=tk.BOTH, expand=True)
 
         # 只需要显示物品名称和库存数量，下标为0和2
-        headers = ['','物品名称', '库存数量']
+        headers = ['','物品名称', '价格', '库存数量']
         self.kucun = load_kucun()
 
         # 创建一个Canvas来容纳Treeview
@@ -458,7 +460,7 @@ class InventoryApp:
         self.tree_inventory.column(headers[0], width=60, minwidth=60, anchor='center', stretch=tk.NO)
         for index, row in enumerate(self.kucun, start=0):
             # 只需要显示物品名称和库存数量，下标为0和2
-            self.tree_inventory.insert('', 'end', values=(index+1,row[0], row[2]))
+            self.tree_inventory.insert('', 'end', values=(index+1,row[0], row[2], row[3]))
         # 设置居中
 
         self.tree_inventory.pack(fill=tk.BOTH, expand=True)
@@ -489,7 +491,8 @@ class InventoryApp:
         print("双击选中行：", selected_index, item_values, item_text)
         product_name = item_values[1]  # 产品名称
         # product_id = self.kucun[selected_index][1]    # 产品ID
-        product_quantity = int(item_values[2])  # 库存数量
+        product_price = int(item_values[2])  # 产品价格
+        product_quantity = int(item_values[3])  # 库存数量
 
         # 弹出新窗口
         self.dialog_inventory = tk.Toplevel(self.root)
@@ -515,15 +518,19 @@ class InventoryApp:
         # 显示产品名称
         tk.Label(self.dialog_inventory, text="产品名称:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
         tk.Label(self.dialog_inventory, text=product_name).grid(row=0, column=1, padx=10, pady=5, sticky="w")
+
+        # 显示价格
+        tk.Label(self.dialog_inventory, text="价格:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_inventory, text=product_price).grid(row=1, column=1, padx=10, pady=5, sticky="w")
         
         # 显示库存数量
-        tk.Label(self.dialog_inventory, text="库存数量:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
-        tk.Label(self.dialog_inventory, text=product_quantity).grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_inventory, text="库存数量:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_inventory, text=product_quantity).grid(row=2, column=1, padx=10, pady=5, sticky="w")
         
         # 输入操作数量
-        tk.Label(self.dialog_inventory, text="操作数量:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_inventory, text="库存操作数量:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
         quantity_entry = tk.Entry(self.dialog_inventory)
-        quantity_entry.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+        quantity_entry.grid(row=3, column=1, padx=10, pady=5, sticky="w")
         quantity_entry.config(width=10)
         # 默认值为1
         quantity_entry.insert(0, "1")
@@ -1411,7 +1418,7 @@ class InventoryApp:
 
 
     # 提交添加物品事件
-    def category_add_commit_item_event(self, item_name, item_quantity, comment_text): 
+    def category_add_commit_item_event(self, item_name, price, item_quantity, comment_text): 
         # 验证逻辑是否合法
         # 1、验证物品名称是否为空
         if not item_name:
@@ -1438,7 +1445,7 @@ class InventoryApp:
             return
         # 生成唯一ID
         id = generate_id('item')
-        print('添加物品:', item_name, id, item_quantity, comment_text)
+        print('添加物品:', item_name, id, price, item_quantity, comment_text)
         # 生成 
         # 去掉备注中的换行符
         comment_text = comment_text.replace('\n', '  ')
@@ -1449,7 +1456,7 @@ class InventoryApp:
         write_with_backup(f'{items_folder_path}{id}.txt')
         # 写入库存文件
         with open(kucun_path, 'a', encoding='utf-8') as file:
-            file.write(f"{item_name}|@|{id}|@|{item_quantity}|@|{comment_text}\n")
+            file.write(f"{item_name}|@|{id}|@|{price}|@|{item_quantity}|@|{comment_text}\n")
         # 写入库存修改日志
         with open(modify_inventory_log_path, 'a', encoding='utf-8') as file:
             file.write(f'{item_name}|@| add|@| {item_quantity}|@| {item_quantity}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
@@ -1501,7 +1508,7 @@ class InventoryApp:
         write_with_backup(event_log_path)
         # 写入文件
         with open(kucun_path, 'w', encoding='utf-8') as file:
-            file.write("name|@| id|@| num|@| command\n")
+            file.write("name|@| id|@| price|@| num|@| command\n")
             for row in self.kucun:
                 # file.write(f"{row[0]}|@|{row[1]}|@|{row[2]}\n")
                 w_str = ""+row[0]
@@ -1540,7 +1547,7 @@ class InventoryApp:
             write_with_backup(event_log_path)
             # 写入库存文件
             with open(kucun_path, 'w', encoding='utf-8') as file:
-                file.write("name|@| id|@| num|@| command\n")
+                file.write("name|@| id|@| price|@| num|@| command\n")
                 for row in self.kucun:
                     # file.write(f"{row[0]}|@|{row[1]}|@|{row[2]}\n")
                     w_str = ""+row[0]
