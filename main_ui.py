@@ -144,6 +144,22 @@ def save_user_index_temp(index):
     with open(f'{user_index_temp_path}', 'w', encoding='utf-8') as file:
         file.write(f'{index}\n')
 
+# 字符串是否是数字，最小值，最大值
+def is_price(s):
+    try:
+        num = float(s)
+        if max is not None and num < 0:
+            # 提示错误
+            messagebox.showerror("错误", "请输入大于0的数字")
+            print("请输入大于0的数字")
+            return False
+        return True
+    except ValueError:
+        # 提示错误
+        messagebox.showerror("错误", "请输入数字")
+        print("请输入数字")
+        return False
+
 
 def verify_user(job_number, password):
     users = load_users()
@@ -543,10 +559,10 @@ class InventoryApp:
         tk.Label(self.dialog_inventory, text="").grid(row=3, column=0, columnspan=2)
         
         # 添加按钮
-        tk.Button(self.dialog_inventory, text="添加", command=lambda: self.add_product(product_name, product_quantity, quantity_entry.get(), selected_index)).grid(row=4, column=0, padx=10, pady=10, sticky="ew")
+        tk.Button(self.dialog_inventory, text="进货", command=lambda: self.add_product(product_name, product_quantity, quantity_entry.get(), selected_index)).grid(row=4, column=0, padx=10, pady=10, sticky="ew")
         
         # 减少按钮
-        tk.Button(self.dialog_inventory, text="减少", command=lambda: self.remove_product(product_name, product_quantity, quantity_entry.get(), selected_index)).grid(row=4, column=1, padx=10, pady=10, sticky="ew")
+        tk.Button(self.dialog_inventory, text="售出", command=lambda: self.remove_product(product_name, product_quantity, quantity_entry.get(), selected_index)).grid(row=4, column=1, padx=10, pady=10, sticky="ew")
     
     # 添加产品数量,index为选中的行(从0开始),便于后续修改; 参数解释: product_name:产品名称, product_quantity:产品数量, quantitym:操作数量, index:选中行
     def add_product(self, product_name, product_quantity, quantitym, index):
@@ -704,7 +720,7 @@ class InventoryApp:
         # 在屏幕中央显示
         x = (self.screen_width - 300) // 2
         y = (self.screen_height - 150) // 2
-        self.dialog_category.geometry(f"300x150+{x}+{y}")
+        self.dialog_category.geometry(f"300x190+{x}+{y}")
         # # 设置关闭事件
         # self.dialog_category.protocol("WM_DELETE_WINDOW", self.on_closing_dialog_category)
         # 聚焦到弹窗
@@ -712,12 +728,15 @@ class InventoryApp:
         # 显示产品名称
         tk.Label(self.dialog_category, text="产品名称:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
         tk.Label(self.dialog_category, text=item_data[0]).grid(row=0, column=1, padx=10, pady=5, sticky="w")
+        # 显示价格
+        tk.Label(self.dialog_category, text="价格:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_category, text=self.kucun[self.selected_item_index][2]).grid(row=1, column=1, padx=10, pady=5, sticky="w")
         # 显示完整备注，使用文字框，不可编辑
-        tk.Label(self.dialog_category, text="备注:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_category, text="备注:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
         text = tk.Text(self.dialog_category, width=27, height=8)
-        text.grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        text.grid(row=2, column=1, padx=10, pady=5, sticky="w")
         # 显示完整备注
-        text.insert(tk.END, self.kucun[self.selected_item_index][3])
+        text.insert(tk.END, self.kucun[self.selected_item_index][4])
         text.config(state=tk.DISABLED)
 
         # 接触禁止操作主界面
@@ -1534,13 +1553,15 @@ class InventoryApp:
     # 修改物品事件
     def modify_item_event(self):
         # 提交修改物品事件
-        def category_modify_commit_item_event(self, item_name_entry, comment_text): 
+        def category_modify_commit_item_event(self, item_name_entry, item_price_entry, comment_text): 
             # 原来物品信息
-            item_name, item_id, item_quantity, item_comment = self.kucun[self.selected_item_index]
+            item_name, item_id, item_price, item_quantity, item_comment = self.kucun[self.selected_item_index]
             print('修改后物品:', item_name_entry, item_id, item_quantity, comment_text)
+            if not is_price(item_price_entry):
+                return
 
             # 修改物品信息
-            self.kucun[self.selected_item_index] = [item_name_entry, item_id, item_quantity, comment_text]
+            self.kucun[self.selected_item_index] = [item_name_entry, item_id, item_price_entry, item_quantity, comment_text]
 
             # 备份文件
             write_with_backup(kucun_path)
@@ -1588,7 +1609,7 @@ class InventoryApp:
         if not verify_result:
             return
         # 获取物品信息
-        item_name, item_id, item_quantity, item_comment = self.kucun[self.selected_item_index]
+        item_name, item_id, item_prece, item_quantity, item_comment = self.kucun[self.selected_item_index]
         print('修改物品:', item_name, item_id, item_quantity, item_comment)
 
         # 弹出修改物品对话框
@@ -1609,25 +1630,32 @@ class InventoryApp:
         y = (self.screen_height - 250) // 2
         self.dialog_modify_item_category.geometry(f"420x250+{x}+{y}")
         # 物品名称
-        tk.Label(self.dialog_modify_item_category, text="物品名称:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_modify_item_category, text="物品名称:").grid(row=0, column=0, padx=6, pady=5, sticky="w")
         item_name_entry = tk.Entry(self.dialog_modify_item_category)
-        item_name_entry.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
+        item_name_entry.grid(row=0, column=1, padx=(10,280), pady=5, sticky="ew")
         item_name_entry.config(width=10)
         item_name_entry.insert(0, item_name)
 
+        # 价格
+        tk.Label(self.dialog_modify_item_category, text="价格:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        item_price_entry = tk.Entry(self.dialog_modify_item_category)
+        item_price_entry.grid(row=1, column=1, padx=(10,280), pady=5, sticky="ew")
+        item_price_entry.config(width=10)
+        item_price_entry.insert(0, item_prece)
+
         # 第二行添加备注
-        tk.Label(self.dialog_modify_item_category, text="备注：").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_modify_item_category, text="备注：").grid(row=2, column=0, padx=10, pady=5, sticky="w")
         # 添加备注框
         comment_quantity = tk.Text(self.dialog_modify_item_category, width=27, height=8)
-        comment_quantity.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
+        comment_quantity.grid(row=2, column=1, padx=10, pady=5, sticky="ew")
         # 添加默认值
         comment_quantity.insert(tk.END, item_comment)
 
         # 第三行加入空白标签
-        tk.Label(self.dialog_modify_item_category, text="").grid(row=2, column=0, columnspan=2)
+        tk.Label(self.dialog_modify_item_category, text="").grid(row=3, column=0, columnspan=2)
 
         # 添加按钮
-        tk.Button(self.dialog_modify_item_category, text="修改", height=2, width=5, command=lambda: category_modify_commit_item_event(self, item_name_entry.get(), comment_quantity.get("1.0", "end-1c"))).grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+        tk.Button(self.dialog_modify_item_category, text="修改", height=2, width=5, command=lambda: category_modify_commit_item_event(self, item_name_entry.get(), item_price_entry.get(), comment_quantity.get("1.0", "end-1c"))).grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
 
     
     # 生成日报表
