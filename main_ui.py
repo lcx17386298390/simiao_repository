@@ -7,6 +7,7 @@ import time
 import random
 import base64
 import shutil
+from tkcalendar import Calendar
 
 # txt文件路径
 kucun_path = 'files/kucun.txt'
@@ -103,7 +104,7 @@ def get_current_item(item_id):
     # 如果没有文件，创建文件
     if not os.path.exists(item_path):
         with open(item_path, 'w', encoding='utf-8') as file:
-            file.write("修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间\n")
+            file.write("修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间|@| 实时价格|@| 售出金额\n")
     try:
         with open(item_path, 'r', encoding='utf-8') as file:
             lines = file.readlines()
@@ -243,26 +244,30 @@ def modify_item(myself, item_name, quantity, type='add', index=0, parent=None):
         # 2、对此次操作进行记录，记录到事件操作表和修改库存表
         with open(f'{event_log_path}', 'a', encoding='utf-8') as file:
             # 记录事件操作  （事件描述, 操作员工id, 操作员工, 变更内容, 操作时间）
-            file.write(f'添加物品|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 从{int(myself.kucun[index][2]) - int(quantity)}修改为{myself.kucun[index][2]}|@| {datetime.datetime.now()}\n')
+            file.write(f'进货|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 进货量：{quantity},---> 数量从{int(myself.kucun[index][3]) - int(quantity)}修改为{myself.kucun[index][3]}|@| {datetime.datetime.now()}\n')
         with open(f'{modify_inventory_log_path}', 'a', encoding='utf-8') as file:
             # 记录库存变更  （物品名称|@| 修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间）
             file.write(f'{item_name}|@| add|@| {quantity}|@| {myself.kucun[index][2]}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
-        # 修改物品表格文件->id.txt【修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间  】,在items文件夹下
+        # 修改物品表格文件->id.txt【修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间  】（添加不写金额）,在items文件夹下
         with open(f'{items_folder_path}{myself.kucun[index][1]}.txt', 'a', encoding='utf-8') as file:
-            file.write(f'add|@| {quantity}|@| {myself.kucun[index][2]}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
+            file.write(f'add|@| {quantity}|@| {myself.kucun[index][3]}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
 
             
     elif type == 'remove':
         # 2、对此次操作进行记录，记录到事件操作表和修改库存表
         with open(f'{event_log_path}', 'a', encoding='utf-8') as file:
             # 记录事件操作  （事件描述, 操作员工id, 操作员工, 变更内容, 操作时间）
-            file.write(f'减少物品|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 从{int(myself.kucun[index][2]) + int(quantity)}修改为{myself.kucun[index][2]}|@| {datetime.datetime.now()}\n')
+            file.write(f'售出|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 进货量：{quantity},---> 数量从{int(myself.kucun[index][3]) + int(quantity)}修改为{myself.kucun[index][3]}|@| {datetime.datetime.now()}\n')
         with open(f'{modify_inventory_log_path}', 'a', encoding='utf-8') as file:
             # 记录库存变更  （物品名称|@| 修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间）
             file.write(f'{item_name}|@| remove|@| {quantity}|@| {myself.kucun[index][2]}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
         # 修改物品表格文件->id.txt【修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间  】,在items文件夹下
+        # 记录当时的价格和计算卖出的金额
+        temp_price = myself.kucun[index][2]
+        sell_price = int(quantity) * float(temp_price)
         with open(f'{items_folder_path}{myself.kucun[index][1]}.txt', 'a', encoding='utf-8') as file:
-            file.write(f'remove|@| {quantity}|@| {myself.kucun[index][2]}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
+            # file.write(f'remove|@| {quantity}|@| {myself.kucun[index][3]}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
+            file.write(f'remove|@| {quantity}|@| {myself.kucun[index][3]}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}|@| {temp_price}|@| {sell_price}\n')
     messagebox.showinfo("成功", "操作成功")
     return True
 
@@ -507,7 +512,7 @@ class InventoryApp:
         print("双击选中行：", selected_index, item_values, item_text)
         product_name = item_values[1]  # 产品名称
         # product_id = self.kucun[selected_index][1]    # 产品ID
-        product_price = int(item_values[2])  # 产品价格
+        product_price = float(item_values[2])  # 产品价格
         product_quantity = int(item_values[3])  # 库存数量
 
         # 弹出新窗口
@@ -665,7 +670,7 @@ class InventoryApp:
         self.kucun = load_kucun()
         # 往tree中插入数据,备注只显示部分
         for index, row in enumerate(self.kucun, start=1):
-            self.tree_category.insert('', 'end', values=(index, row[0], row[3][:5]+'...'))
+            self.tree_category.insert('', 'end', values=(index, row[0], row[4][:5]+'...'))
 
         # # 往tree中插入数据->测试
         # for i in range(100):
@@ -727,7 +732,7 @@ class InventoryApp:
         self.dialog_category.focus_force()
         # 显示产品名称
         tk.Label(self.dialog_category, text="产品名称:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
-        tk.Label(self.dialog_category, text=item_data[0]).grid(row=0, column=1, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_category, text=item_data[1]).grid(row=0, column=1, padx=10, pady=5, sticky="w")
         # 显示价格
         tk.Label(self.dialog_category, text="价格:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
         tk.Label(self.dialog_category, text=self.kucun[self.selected_item_index][2]).grid(row=1, column=1, padx=10, pady=5, sticky="w")
@@ -1096,6 +1101,49 @@ class InventoryApp:
 
     # 创建库存统计页面
     def create_inventory_report(self):
+        # 弹出日期选择框
+        def select_date():
+            def on_date_select(event):
+                """处理日期选择事件"""
+                selected_date = self.cal.get_date()
+
+                if self.start_date is None:
+                    # 选择起始日期
+                    self.start_date = selected_date
+                    self.instruction_label.config(text="请点击选择结束日期")
+                elif self.end_date is None:
+                    # 选择结束日期
+                    self.end_date = selected_date
+                    update_label()
+                    self.cal.master.destroy()  # 关闭日历框
+
+            def update_label():
+                # """更新主界面显示的日期范围"""
+                # if self.start_date and self.end_date:
+                #     self.label.config(text=f"起始日期: {self.start_date}, 结束日期: {self.end_date}")
+                # else:
+                #     self.label.config(text="未选择日期范围")
+                # print(f"起始日期: {self.start_date}, 结束日期: {self.end_date}")
+                pass
+            self.date_select_top = tk.Toplevel(self.root)
+            self.date_select_top.title("选择日期范围")
+            self.start_date = None
+            self.end_date = None
+            # 获取当前日期
+            now = datetime.datetime.now()
+            # 创建日历控件
+            self.cal = Calendar(self.date_select_top, selectmode="day", year=now.year, month=now.month, day=now.day)
+            self.cal.pack(pady=10, padx=10)
+
+            # 提示标签
+            self.instruction_label = tk.Label(self.date_select_top, text="请点击选择起始日期", font=("Arial", 10))
+            self.instruction_label.pack(pady=5)
+
+            # 绑定日历点击事件
+            self.cal.bind("<<CalendarSelected>>", on_date_select)
+            # 阻塞主界面，直到日历框关闭
+            self.root.wait_window(self.date_select_top)
+
         # 下拉框选中事件
         def on_select(event):
             # 取消全选状态，光标移到文本末尾
@@ -1135,6 +1183,19 @@ class InventoryApp:
                         end = datetime.datetime(now.year + 1, 1, 1, 0, 0, 0)
                     else:
                         end = datetime.datetime(now.year, now.month + 1, 1, 0, 0, 0)
+                elif period == "select":
+                    if self.start_date is None or self.end_date is None:
+                        print('未选择日期范围, 自动选择今日')
+                        self.selected_report_type = 'today'
+                        start = datetime.datetime(now.year, now.month, now.day, 0, 0, 0)
+                        end = start + datetime.timedelta(days=1)
+                    else:
+                        # 将日期转为datetime
+                        self.start_date = datetime.datetime.strptime(self.start_date, "%Y/%m/%d")
+                        self.end_date = datetime.datetime.strptime(self.end_date, "%Y/%m/%d")
+                        start = datetime.datetime(self.start_date.year, self.start_date.month, self.start_date.day, 0, 0, 0)
+                        end = datetime.datetime(self.end_date.year, self.end_date.month, self.end_date.day, 0, 0, 0)
+                        print('选择的日期范围:', start, end)
                 else:
                     raise ValueError("时间段无效")
                 
@@ -1158,7 +1219,7 @@ class InventoryApp:
                 record[5] = datetime.datetime.strptime(record[5], "%Y-%m-%d %H:%M:%S.%f")  # 转为datetime
 
             # 返回筛选后的记录
-            if type in ['today', 'week', 'month']:
+            if type in ['today', 'week', 'month', 'select']:
                 return filter_records(records, type)
             else:
                 return records  # 全部返回
@@ -1169,13 +1230,17 @@ class InventoryApp:
             add_quantity = 0
             # 销售数量
             remove_quantity = 0
+            # 售出金额
+            sell_price = 0
             for record in records:
                 if record[0] == 'add':
                     add_quantity += int(record[1])
                 else:
                     remove_quantity += int(record[1])
-            self.middle_frame_right_report_label.config(text=f"进货统计：{add_quantity}")
-            self.bottom_frame_right_report_label.config(text=f"销售统计：{remove_quantity}")
+                    sell_price += float(record[7])
+            self.middle_frame_right_report_label.config(text=f"进货数量：{add_quantity}")
+            self.bottom_frame_right_report_label.config(text=f"售出数量：{remove_quantity}")
+            self.sell_price_frame_right_report.config(text=f"售出金额：{sell_price}")
             return add_quantity, remove_quantity
 
         # 更新treeview
@@ -1199,6 +1264,12 @@ class InventoryApp:
         def date_button_event(type):
             # 高亮按钮
             self.highlight_report_button(type)
+            # 如果是自选，弹出日期选择框
+            if type == 'select':
+                
+                select_date()
+                
+
             # 更新选中type
             self.selected_report_type = type
             # 获取当前物品的记录
@@ -1242,13 +1313,15 @@ class InventoryApp:
         # 绑定选中事件
         self.combobox.bind("<<ComboboxSelected>>", on_select)
 
-        # 添加三个按钮，今日，本周，本月
+        # 添加三个按钮，今日，本周，本月   ###2025-1-28 在三个按钮前加入自选起始时间
         self.report_buttons['month'] = tk.Button(self.top_frame_report, text="本月", command=lambda: date_button_event('month'), font=("Arial", 12, "bold"),width=8, height=1)
         self.report_buttons['month'].pack(side=tk.RIGHT, padx=10)
         self.report_buttons['week'] = tk.Button(self.top_frame_report, text="本周", command=lambda: date_button_event('week'), font=("Arial", 12, "bold"),width=8, height=1)
         self.report_buttons['week'].pack(side=tk.RIGHT, padx=10)
         self.report_buttons['today'] = tk.Button(self.top_frame_report, text="今日", command=lambda: date_button_event('today'), font=("Arial", 12, "bold"),width=8, height=1)
         self.report_buttons['today'].pack(side=tk.RIGHT, padx=10)
+        self.report_buttons['select'] = tk.Button(self.top_frame_report, text="自选", command=lambda: date_button_event('select'), font=("Arial", 12, "bold"),width=8, height=1)
+        self.report_buttons['select'].pack(side=tk.RIGHT, padx=10)
         self.highlight_report_button('today')
         # 在上方添加frame
         self.top_frame_report_report = tk.Frame(self.bottom_frame_report, height=35)
@@ -1283,7 +1356,7 @@ class InventoryApp:
         self.scrollbar_report.configure(command=self.tree_report.yview)
         self.tree_report.configure(yscrollcommand=self.scrollbar_report.set)
 
-        # 右侧frame加入三个frame，分别是库存统计，进货统计，销售统计
+        # 右侧frame加入三个frame，分别是库存统计，进货统计，销售统计，售出金额
         self.top_frame_right_report = tk.Frame(self.right_frame_report, height=100)
         self.top_frame_right_report.pack(side=tk.TOP, fill=tk.X, expand=1)
         
@@ -1293,13 +1366,19 @@ class InventoryApp:
         self.bottom_frame_right_report = tk.Frame(self.right_frame_report, height=100)
         self.bottom_frame_right_report.pack(side=tk.TOP, fill=tk.X, expand=1)
 
+        self.sell_price_frame_right_report = tk.Frame(self.right_frame_report, height=100)
+        self.sell_price_frame_right_report.pack(side=tk.TOP, fill=tk.X, expand=1)
+
         # 添加三个标签按钮
-        self.top_frame_right_report_label = tk.Label(self.top_frame_right_report, text=f"当前库存: {self.selected_report_item[2]}", font=("Arial", 12, "bold"))
+        self.top_frame_right_report_label = tk.Label(self.top_frame_right_report, text=f"当前库存: {self.selected_report_item[3]}", font=("Arial", 12, "bold"))
         self.top_frame_right_report_label.pack(side=tk.LEFT, padx=20)
-        self.middle_frame_right_report_label = tk.Label(self.middle_frame_right_report, text="进货统计", font=("Arial", 12, "bold"))
+        self.middle_frame_right_report_label = tk.Label(self.middle_frame_right_report, text="进货: ", font=("Arial", 12, "bold"))
         self.middle_frame_right_report_label.pack(side=tk.LEFT, padx=20)
-        self.bottom_frame_right_report_label = tk.Label(self.bottom_frame_right_report, text="销售统计", font=("Arial", 12, "bold"))
+        self.bottom_frame_right_report_label = tk.Label(self.bottom_frame_right_report, text="售出: ", font=("Arial", 12, "bold"))
         self.bottom_frame_right_report_label.pack(side=tk.LEFT, padx=20)
+        # 售出金额
+        self.sell_price_frame_right_report = tk.Label(self.sell_price_frame_right_report, text="售出金额: ", font=("Arial", 12, "bold"))
+        self.sell_price_frame_right_report.pack(side=tk.LEFT, padx=20)
 
 
         # 默认为第一个物品的当天数据
@@ -1415,29 +1494,34 @@ class InventoryApp:
         # 在屏幕中央显示
         x = (self.screen_width - 420) // 2
         y = (self.screen_height - 250) // 2
-        self.dialog_add_item_category.geometry(f"420x250+{x}+{y}")
+        self.dialog_add_item_category.geometry(f"420x280+{x}+{y}")
         # 物品名称
         tk.Label(self.dialog_add_item_category, text="物品名称:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
         item_name = tk.Entry(self.dialog_add_item_category)
-        item_name.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
+        item_name.grid(row=0, column=1, padx=(10,160), pady=5, sticky="ew")
         item_name.config(width=10)
+        # 价格
+        tk.Label(self.dialog_add_item_category, text="价格:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        item_price = tk.Entry(self.dialog_add_item_category)
+        item_price.grid(row=1, column=1, padx=(10,160), pady=5, sticky="ew")
+        item_price.config(width=10)
         # 数量
-        tk.Label(self.dialog_add_item_category, text="数量:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_add_item_category, text="数量:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
         item_quantity = tk.Entry(self.dialog_add_item_category)
-        item_quantity.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
+        item_quantity.grid(row=2, column=1, padx=(10,160), pady=5, sticky="ew")
         item_quantity.config(width=10)
         # 第三行添加备注
-        tk.Label(self.dialog_add_item_category, text="备注：").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(self.dialog_add_item_category, text="备注：").grid(row=3, column=0, padx=10, pady=5, sticky="w")
         # 添加备注框
         comment_quantity = tk.Text(self.dialog_add_item_category, width=27, height=8)
-        comment_quantity.grid(row=2, column=1, padx=10, pady=5, sticky="ew")
+        comment_quantity.grid(row=3, column=1, padx=10, pady=5, sticky="ew")
 
         # 添加按钮
-        tk.Button(self.dialog_add_item_category, text="添加", height=2, width=5, command=lambda: self.category_add_commit_item_event(item_name.get(), item_quantity.get(), comment_quantity.get("1.0", "end-1c"))).grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+        tk.Button(self.dialog_add_item_category, text="添加", height=2, width=5, command=lambda: self.category_add_commit_item_event(item_name.get(), item_price.get(), item_quantity.get(), comment_quantity.get("1.0", "end-1c"))).grid(row=4, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
 
 
     # 提交添加物品事件
-    def category_add_commit_item_event(self, item_name, price, item_quantity, comment_text): 
+    def category_add_commit_item_event(self, item_name, item_price, item_quantity, comment_text): 
         # 验证逻辑是否合法
         # 1、验证物品名称是否为空
         if not item_name:
@@ -1457,14 +1541,16 @@ class InventoryApp:
             # 聚焦到弹窗
             self.dialog_add_item_category.focus_force()
             return False
-        
+        # 4、验证price是否为数字
+        if not is_price(item_price) :
+            return
         # 验证操作人员，验证通过才能进行操作
         verify_result = verify_user_ui(self.dialog_add_item_category)
         if not verify_result:
             return
         # 生成唯一ID
         id = generate_id('item')
-        print('添加物品:', item_name, id, price, item_quantity, comment_text)
+        print('添加物品:', item_name, id, item_price, item_quantity, comment_text)
         # 生成 
         # 去掉备注中的换行符
         comment_text = comment_text.replace('\n', '  ')
@@ -1475,13 +1561,13 @@ class InventoryApp:
         write_with_backup(f'{items_folder_path}{id}.txt')
         # 写入库存文件
         with open(kucun_path, 'a', encoding='utf-8') as file:
-            file.write(f"{item_name}|@|{id}|@|{price}|@|{item_quantity}|@|{comment_text}\n")
+            file.write(f"{item_name}|@|{id}|@|{item_price }|@|{item_quantity}|@|{comment_text}\n")
         # 写入库存修改日志
         with open(modify_inventory_log_path, 'a', encoding='utf-8') as file:
             file.write(f'{item_name}|@| add|@| {item_quantity}|@| {item_quantity}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
         # 写入事件日志
         with open(event_log_path, 'a', encoding='utf-8') as file:
-            file.write(f'添加新物品|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 数量: {item_quantity}|@| {datetime.datetime.now()}\n')
+            file.write(f'添加新物品|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 价格: {item_price}, 数量: {item_quantity}, 备注: {comment_text}|@| {datetime.datetime.now()}\n')
         # 创建物品表格文件->id.txt【修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间  】,在items文件夹下
         with open(f'{items_folder_path}{id}.txt', 'w', encoding='utf-8') as file:
             file.write("修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间\n")
@@ -1514,8 +1600,8 @@ class InventoryApp:
         if not verify_result:
             return
         # 获取物品信息
-        item_name, item_id, item_quantity, item_comment = self.kucun[self.selected_item_index]
-        print('要删除的物品信息:', item_name, item_id, item_quantity, item_comment)
+        item_name, item_id, item_price, item_quantity, item_comment = self.kucun[self.selected_item_index]
+        print('要删除的物品信息:', item_name, item_id, item_price, item_quantity, item_comment)
 
         # 读取库存文件
         self.kucun = load_kucun()
@@ -1539,7 +1625,7 @@ class InventoryApp:
             file.write(f'{item_name}|@| remove|@| {item_quantity}|@| 0|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
         # 写入事件日志
         with open(event_log_path, 'a', encoding='utf-8') as file:
-            file.write(f'删除物品|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 数量: {item_quantity}|@| {datetime.datetime.now()}\n')
+            file.write(f'删除物品|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 数量: {item_quantity}, 备注: {item_comment}|@| {datetime.datetime.now()}\n')
         # 删除物品表格文件
         os.remove(f'{items_folder_path}{item_id}.txt')
         # 提示删除成功
@@ -1556,7 +1642,7 @@ class InventoryApp:
         def category_modify_commit_item_event(self, item_name_entry, item_price_entry, comment_text): 
             # 原来物品信息
             item_name, item_id, item_price, item_quantity, item_comment = self.kucun[self.selected_item_index]
-            print('修改后物品:', item_name_entry, item_id, item_quantity, comment_text)
+            print('修改后物品:', item_name_entry, item_id, item_price, item_quantity, comment_text)
             if not is_price(item_price_entry):
                 return
 
@@ -1582,7 +1668,11 @@ class InventoryApp:
             #     file.write(f'{item_name}|@| modify|@| {item_quantity}|@| {item_quantity}|@| {verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n')
             # 写入事件日志
             with open(event_log_path, 'a', encoding='utf-8') as file:
-                file.write(f'修改物品信息|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 备注: {item_comment}；修改为： 货物：{item_name_entry}，备注：{comment_text}|@| {datetime.datetime.now()}\n')
+                # 判断价格是否改变
+                if item_price != item_price_entry:
+                    file.write(f'修改物品信息|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 价格: {item_price}, 备注: {item_comment}；修改为--->：货物：{item_name_entry}，价格：{item_price_entry}，备注：{comment_text}|@| {datetime.datetime.now()}\n')
+                else:
+                    file.write(f'修改物品信息|@| {verify_result[0]}|@| {verify_result[1]}|@| 货物: {item_name}, 备注: {item_comment}；修改为--->： 货物：{item_name_entry}，备注：{comment_text}|@| {datetime.datetime.now()}\n')
             # 提示修改成功
             messagebox.showinfo("提示", "修改成功")
             # 刷新页面
