@@ -172,8 +172,8 @@ def verify_user(job_number, password):
 
 # 验证用户->弹出验证用户信息对话框,成功返回用户信息,失败返回False
 def verify_user_ui(parent, level='root', job_number_level=None):
-    ########## 测试代码 ##########
-    return ['root', '管理员']
+    # ########## 测试代码 ##########
+    # return ['root', '管理员']
     dialog_verify = VerifyDialog(parent,title="验证")
     print("弹出验证用户信息对话框")
     user_id, password = dialog_verify.get_credentials()
@@ -1161,7 +1161,7 @@ class InventoryApp:
             records = get_current_item_data(self.selected_report_item[1], self.selected_report_type)
             update_treeview(records)
             # 设置库存量
-            self.top_frame_right_report_label.config(text=f"当前统计：{self.selected_report_item[2]}")
+            self.top_frame_right_report_label.config(text=f"当前库存：{self.selected_report_item[3]}")
 
         
         # 获取选中物品的出库入库记录,四种情况：今日，本周，本月，全部
@@ -1233,7 +1233,7 @@ class InventoryApp:
             # 售出金额
             sell_price = 0
             for record in records:
-                if record[0] == 'add':
+                if record[0] == 'add' or record[0] == 'create':
                     add_quantity += int(record[1])
                 else:
                     remove_quantity += int(record[1])
@@ -1253,8 +1253,8 @@ class InventoryApp:
             if not records:
                 self.tree_report.insert('', 'end', values=('无数据', '无数据', '无数据', '无数据'))
                 return
-            # 插入数据
-            for record in records:
+            # 插入数据，倒置插入
+            for record in records[::-1]:
                 if record[0] == 'add' or record[0] == 'create':
                     set_type = '进货'
                 else:
@@ -1440,9 +1440,11 @@ class InventoryApp:
             # 聚焦到主窗口
             self.root.focus_force()
             self.dialog_log.destroy()
-
-
-
+        
+        # 仅管理员可查看事件日志，验证管理员密码
+        verify_result = verify_user_ui(self.root, level='root')
+        if not verify_result:
+            return
         # 添加treeview和滑轮
         self.canvas_event = tk.Canvas(self.main_frame)
         # 事件描述|@| 操作员工id|@| 操作员工|@| 操作内容内容|@| 操作时间
@@ -1571,7 +1573,7 @@ class InventoryApp:
         # 创建物品表格文件->id.txt【修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间  】,在items文件夹下
         with open(f'{items_folder_path}{id}.txt', 'w', encoding='utf-8') as file:
             file.write("修改类型|@| 修改数量|@| 修改后数量|@| 操作员工姓名|@| 操作员工ID|@| 修改时间\n")
-            file.write(f"create|@| {item_quantity}|@| {item_quantity}|@| {verify_result[0]}|@| {verify_result[1]}|@| {datetime.datetime.now()}\n")
+            file.write(f"create|@| {item_quantity}|@| {item_quantity}|@| {verify_result[1]}|@|{verify_result[1]}|@| {verify_result[0]}|@| {datetime.datetime.now()}\n")
         # 提示添加成功
         messagebox.showinfo("提示", "添加成功")
         # 刷新页面
